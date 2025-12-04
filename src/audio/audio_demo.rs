@@ -1,14 +1,15 @@
 mod circular_buffer;
 mod sample_buffer;
 
-use crate::circular_buffer::CircularBuffer;
-use crate::sample_buffer::SampleBuffer;
+use self::circular_buffer::CircularBuffer;
+use self::sample_buffer::SampleBuffer;
 
 fn main() -> Result<(), anyhow::Error> {
-    let mut sample_buffer = SampleBuffer::new(2048);
-    const BUFFER_SIZE : usize = 16384;
-    let mut buffer = CircularBuffer::new(BUFFER_SIZE, 0.0);
-    const SCREEN_WIDTH: usize = 180;
+    const STREAM_SIZE : usize = 4096;
+    let mut sample_buffer = Stream::<STREAM_SIZE>::new();
+    const BUFFER_SIZE : usize = 2048;
+    let mut buffer = CircularBuffer::<f32, BUFFER_SIZE>::new(0.0);
+    const SCREEN_WIDTH: usize = 150;
     const SCREEN_HEIGHT: usize = 50;
 
     loop {

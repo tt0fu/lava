@@ -1,51 +1,57 @@
-pub struct CircularBuffer<T> {
-    size: usize,
+pub struct CircularBuffer<T, const SIZE: usize> {
     start: usize,
-    count: usize,
-    data: Vec<T>,
+    size: usize,
+    data: [T; SIZE],
 }
 
-impl<T: Clone> CircularBuffer<T> {
-    pub fn new(size: usize, fill: T) -> Self {
+impl<T: Copy, const SIZE: usize> CircularBuffer<T, SIZE> {
+    pub fn new(fill: T) -> Self {
         Self {
-            size,
             start: 0,
-            count: 0,
-            data: vec![fill; size],
+            size: 0,
+            data: [fill; SIZE],
         }
     }
 
     pub fn pop(&mut self) -> Option<T> {
-        if self.count <= 0 {
+        if self.size <= 0 {
             None
         } else {
             let value = self.data[self.start].clone();
-            self.start = (self.start + 1) % self.size;
-            self.count -= 1;
+            self.start = (self.start + 1) % SIZE;
+            self.size -= 1;
             Some(value)
         }
     }
+
+    pub fn data(&self) -> [T; SIZE] {
+        self.data
+    }
 }
 
-impl<T> CircularBuffer<T> {
+impl<T, const SIZE: usize> CircularBuffer<T, SIZE> {
     pub fn push(&mut self, value: T) {
-        while self.count >= self.size {
-            self.start = (self.start + 1) % self.size;
-            self.count -= 1;
+        while self.size >= SIZE {
+            self.start = (self.start + 1) % SIZE;
+            self.size -= 1;
         }
-        self.data[(self.start + self.count) % self.size] = value;
-        self.count += 1;
+        self.data[(self.start + self.size) % SIZE] = value;
+        self.size += 1;
     }
 
-    pub fn count(&self) -> usize {
-        self.count
+    pub fn size(&self) -> usize {
+        self.size
+    }
+
+    pub fn start(&self) -> usize {
+        self.start
     }
 }
 
-impl<T> std::ops::Index<usize> for CircularBuffer<T> {
+impl<T, const SIZE: usize> std::ops::Index<usize> for CircularBuffer<T, SIZE> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.data[(self.start + index) % self.size]
+        &self.data[(self.start + index) % SIZE]
     }
 }

@@ -1,31 +1,31 @@
-use self::model::{Uv, Position, INDICES, UVS, POSITIONS};
-use glam::{
-    f32::{Mat3, Vec3},
-    Mat4,
-};
-use std::{error::Error, sync::Arc, time::Instant};
+use lava::audio::{circular_buffer::CircularBuffer, stream::Stream};
+use std::{error::Error, sync::Arc}; //time::Instant};
 use vulkano::{
+    Validated, VulkanError, VulkanLibrary,
     buffer::{
+        Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer,
         allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
-        Buffer, BufferCreateInfo, BufferUsage, Subbuffer,
     },
     command_buffer::{
-        allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
-        RenderPassBeginInfo,
+        AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo,
+        allocator::StandardCommandBufferAllocator,
     },
     descriptor_set::{
-        allocator::StandardDescriptorSetAllocator, DescriptorSet, WriteDescriptorSet,
+        DescriptorSet, WriteDescriptorSet, allocator::StandardDescriptorSetAllocator,
     },
     device::{
-        physical::PhysicalDeviceType, Device, DeviceCreateInfo, DeviceExtensions, DeviceOwned,
-        Queue, QueueCreateInfo, QueueFlags,
+        Device, DeviceCreateInfo, DeviceExtensions, DeviceOwned, Queue, QueueCreateInfo,
+        QueueFlags, physical::PhysicalDeviceType,
     },
     format::Format,
-    image::{view::ImageView, Image, ImageCreateInfo, ImageType, ImageUsage},
+    image::{Image, ImageCreateInfo, ImageType, ImageUsage, view::ImageView},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
     pipeline::{
+        GraphicsPipeline, Pipeline, PipelineBindPoint, PipelineLayout,
+        PipelineShaderStageCreateInfo,
         graphics::{
+            GraphicsPipelineCreateInfo,
             color_blend::{ColorBlendAttachmentState, ColorBlendState},
             depth_stencil::{DepthState, DepthStencilState},
             input_assembly::InputAssemblyState,
@@ -33,19 +33,15 @@ use vulkano::{
             rasterization::RasterizationState,
             vertex_input::{Vertex, VertexDefinition},
             viewport::{Viewport, ViewportState},
-            GraphicsPipelineCreateInfo,
         },
         layout::PipelineDescriptorSetLayoutCreateInfo,
-        GraphicsPipeline, Pipeline, PipelineBindPoint, PipelineLayout,
-        PipelineShaderStageCreateInfo,
     },
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
     shader::EntryPoint,
     swapchain::{
-        acquire_next_image, Surface, Swapchain, SwapchainCreateInfo, SwapchainPresentInfo,
+        Surface, Swapchain, SwapchainCreateInfo, SwapchainPresentInfo, acquire_next_image,
     },
     sync::{self, GpuFuture},
-    Validated, VulkanError, VulkanLibrary,
 };
 use winit::{
     application::ApplicationHandler,
@@ -55,12 +51,45 @@ use winit::{
     window::{Window, WindowId},
 };
 
-mod model;
+#[derive(BufferContents, Vertex)]
+#[repr(C)]
+pub struct Position {
+    #[format(R32G32_SFLOAT)]
+    position: [f32; 2],
+}
+
+pub const POSITIONS: [Position; 4] = [
+    Position {
+        position: [-1.0, -1.0],
+    },
+    Position {
+        position: [-1.0, 1.0],
+    },
+    Position {
+        position: [1.0, -1.0],
+    },
+    Position {
+        position: [1.0, 1.0],
+    },
+];
+
+#[derive(BufferContents, Vertex)]
+#[repr(C)]
+pub struct Uv {
+    #[format(R32G32_SFLOAT)]
+    uv: [f32; 2],
+}
+
+pub const UVS: [Uv; 4] = [
+    Uv { uv: [0.0, 0.0] },
+    Uv { uv: [0.0, 1.0] },
+    Uv { uv: [1.0, 0.0] },
+    Uv { uv: [1.0, 1.0] },
+];
+
+pub const INDICES: [u16; 6] = [0, 1, 2, 1, 2, 3];
 
 fn main() -> Result<(), impl Error> {
-    // The start of this example is exactly the same as `triangle`. You should read the `triangle`
-    // example if you haven't done so yet.
-
     let event_loop = EventLoop::new().unwrap();
     let mut app = App::new(&event_loop);
 
@@ -75,10 +104,10 @@ struct App {
     descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
     command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
     vertex_buffer: Subbuffer<[Position]>,
-    normals_buffer: Subbuffer<[Uv]>,
+    uvs_buffer: Subbuffer<[Uv]>,
     index_buffer: Subbuffer<[u16]>,
     uniform_buffer_allocator: SubbufferAllocator,
-    rcx: Option<RenderContext>,
+    render_context: Option<RenderContext>,
 }
 
 struct RenderContext {
@@ -91,7 +120,9 @@ struct RenderContext {
     pipeline: Arc<GraphicsPipeline>,
     recreate_swapchain: bool,
     previous_frame_end: Option<Box<dyn GpuFuture>>,
-    rotation_start: Instant,
+    // time_start: Instant,
+    stream: Stream<4096, 2>,
+    samples: CircularBuffer<f32, 4096>,
 }
 
 impl App {
@@ -181,7 +212,7 @@ impl App {
             POSITIONS,
         )
         .unwrap();
-        let normals_buffer = Buffer::from_iter(
+        let uvs_buffer = Buffer::from_iter(
             memory_allocator.clone(),
             BufferCreateInfo {
                 usage: BufferUsage::VERTEX_BUFFER,
@@ -220,7 +251,7 @@ impl App {
             },
         );
 
-        App {
+        Self {
             instance,
             device,
             queue,
@@ -228,10 +259,10 @@ impl App {
             descriptor_set_allocator,
             command_buffer_allocator,
             vertex_buffer,
-            normals_buffer,
+            uvs_buffer,
             index_buffer,
             uniform_buffer_allocator,
-            rcx: None,
+            render_context: None,
         }
     }
 }
@@ -320,9 +351,9 @@ impl ApplicationHandler for App {
 
         let previous_frame_end = Some(sync::now(self.device.clone()).boxed());
 
-        let rotation_start = Instant::now();
+        // let time_start = Instant::now();
 
-        self.rcx = Some(RenderContext {
+        self.render_context = Some(RenderContext {
             window,
             swapchain,
             render_pass,
@@ -332,7 +363,9 @@ impl ApplicationHandler for App {
             pipeline,
             recreate_swapchain: false,
             previous_frame_end,
-            rotation_start,
+            // time_start,
+            stream: Stream::new(48000, 4096),
+            samples: CircularBuffer::new(0.0),
         });
     }
 
@@ -342,73 +375,68 @@ impl ApplicationHandler for App {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        let rcx = self.rcx.as_mut().unwrap();
+        let render_context = self.render_context.as_mut().unwrap();
 
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
             WindowEvent::Resized(_) => {
-                rcx.recreate_swapchain = true;
+                render_context.recreate_swapchain = true;
             }
             WindowEvent::RedrawRequested => {
-                let window_size = rcx.window.inner_size();
+                let window_size = render_context.window.inner_size();
 
                 if window_size.width == 0 || window_size.height == 0 {
                     return;
                 }
 
-                rcx.previous_frame_end.as_mut().unwrap().cleanup_finished();
+                render_context
+                    .previous_frame_end
+                    .as_mut()
+                    .unwrap()
+                    .cleanup_finished();
 
-                if rcx.recreate_swapchain {
-                    let (new_swapchain, new_images) = rcx
+                if render_context.recreate_swapchain {
+                    let (new_swapchain, new_images) = render_context
                         .swapchain
                         .recreate(SwapchainCreateInfo {
                             image_extent: window_size.into(),
-                            ..rcx.swapchain.create_info()
+                            ..render_context.swapchain.create_info()
                         })
                         .expect("failed to recreate swapchain");
 
-                    rcx.swapchain = new_swapchain;
-                    (rcx.framebuffers, rcx.pipeline) = window_size_dependent_setup(
-                        window_size,
-                        &new_images,
-                        &rcx.render_pass,
-                        &self.memory_allocator,
-                        &rcx.vs,
-                        &rcx.fs,
-                    );
-                    rcx.recreate_swapchain = false;
+                    render_context.swapchain = new_swapchain;
+                    (render_context.framebuffers, render_context.pipeline) =
+                        window_size_dependent_setup(
+                            window_size,
+                            &new_images,
+                            &render_context.render_pass,
+                            &self.memory_allocator,
+                            &render_context.vs,
+                            &render_context.fs,
+                        );
+                    render_context.recreate_swapchain = false;
                 }
 
                 let uniform_buffer = {
-                    let elapsed = rcx.rotation_start.elapsed();
-                    let rotation =
-                        elapsed.as_secs() as f64 + elapsed.subsec_nanos() as f64 / 1_000_000_000.0;
-                    let rotation = Mat3::from_rotation_y(rotation as f32);
+                    // let elapsed = render_context.time_start.elapsed();
+                    // let time =
+                    //     elapsed.as_secs() as f32 + elapsed.subsec_nanos() as f32 / 1_000_000_000.0;
 
-                    // NOTE: This teapot was meant for OpenGL where the origin is at the lower left
-                    // instead the origin is at the upper left in Vulkan, so we reverse the Y axis.
-                    let aspect_ratio = rcx.swapchain.image_extent()[0] as f32
-                        / rcx.swapchain.image_extent()[1] as f32;
-
-                    let proj = Mat4::perspective_rh_gl(
-                        std::f32::consts::FRAC_PI_2,
-                        aspect_ratio,
-                        0.01,
-                        100.0,
-                    );
-                    let view = Mat4::look_at_rh(
-                        Vec3::new(0.3, 0.3, 1.0),
-                        Vec3::new(0.0, 0.0, 0.0),
-                        Vec3::new(0.0, -1.0, 0.0),
-                    );
-                    let scale = Mat4::from_scale(Vec3::splat(0.01));
+                    let new_samples = render_context.stream.get_samples();
+                    for sample in &new_samples {
+                        render_context.samples.push((sample[0] + sample[1]) / 2.0);
+                    }
 
                     let uniform_data = fs::Data {
-                        world: Mat4::from_mat3(rotation).to_cols_array_2d(),
-                        view: (view * scale).to_cols_array_2d(),
-                        proj: proj.to_cols_array_2d(),
+                        scale_x: (window_size.width as f32 / window_size.height as f32).into(),
+                        samples_start: (render_context.samples.start() as u32).into(),
+                        samples_data: render_context.samples.data().map(|x| x.into()),
+                        period: 100.0,
+                        focus: 0.5,
+                        center_sample: 2048.0,
+                        line_width: 50.0,
                     };
 
                     let buffer = self.uniform_buffer_allocator.allocate_sized().unwrap();
@@ -417,7 +445,7 @@ impl ApplicationHandler for App {
                     buffer
                 };
 
-                let layout = &rcx.pipeline.layout().set_layouts()[0];
+                let layout = &render_context.pipeline.layout().set_layouts()[0];
                 let descriptor_set = DescriptorSet::new(
                     self.descriptor_set_allocator.clone(),
                     layout.clone(),
@@ -426,22 +454,20 @@ impl ApplicationHandler for App {
                 )
                 .unwrap();
 
-                let (image_index, suboptimal, acquire_future) = match acquire_next_image(
-                    rcx.swapchain.clone(),
-                    None,
-                )
-                .map_err(Validated::unwrap)
-                {
-                    Ok(r) => r,
-                    Err(VulkanError::OutOfDate) => {
-                        rcx.recreate_swapchain = true;
-                        return;
-                    }
-                    Err(e) => panic!("failed to acquire next image: {e}"),
-                };
+                let (image_index, suboptimal, acquire_future) =
+                    match acquire_next_image(render_context.swapchain.clone(), None)
+                        .map_err(Validated::unwrap)
+                    {
+                        Ok(r) => r,
+                        Err(VulkanError::OutOfDate) => {
+                            render_context.recreate_swapchain = true;
+                            return;
+                        }
+                        Err(e) => panic!("failed to acquire next image: {e}"),
+                    };
 
                 if suboptimal {
-                    rcx.recreate_swapchain = true;
+                    render_context.recreate_swapchain = true;
                 }
 
                 let mut builder = AutoCommandBufferBuilder::primary(
@@ -455,29 +481,26 @@ impl ApplicationHandler for App {
                     .begin_render_pass(
                         RenderPassBeginInfo {
                             clear_values: vec![
-                                Some([0.0, 0.0, 1.0, 1.0].into()),
+                                Some([0.0, 0.0, 0.0, 1.0].into()), // background color
                                 Some(1f32.into()),
                             ],
                             ..RenderPassBeginInfo::framebuffer(
-                                rcx.framebuffers[image_index as usize].clone(),
+                                render_context.framebuffers[image_index as usize].clone(),
                             )
                         },
                         Default::default(),
                     )
                     .unwrap()
-                    .bind_pipeline_graphics(rcx.pipeline.clone())
+                    .bind_pipeline_graphics(render_context.pipeline.clone())
                     .unwrap()
                     .bind_descriptor_sets(
                         PipelineBindPoint::Graphics,
-                        rcx.pipeline.layout().clone(),
+                        render_context.pipeline.layout().clone(),
                         0,
                         descriptor_set,
                     )
                     .unwrap()
-                    .bind_vertex_buffers(
-                        0,
-                        (self.vertex_buffer.clone(), self.normals_buffer.clone()),
-                    )
+                    .bind_vertex_buffers(0, (self.vertex_buffer.clone(), self.uvs_buffer.clone()))
                     .unwrap()
                     .bind_index_buffer(self.index_buffer.clone())
                     .unwrap();
@@ -487,7 +510,7 @@ impl ApplicationHandler for App {
                 builder.end_render_pass(Default::default()).unwrap();
 
                 let command_buffer = builder.build().unwrap();
-                let future = rcx
+                let future = render_context
                     .previous_frame_end
                     .take()
                     .unwrap()
@@ -497,7 +520,7 @@ impl ApplicationHandler for App {
                     .then_swapchain_present(
                         self.queue.clone(),
                         SwapchainPresentInfo::swapchain_image_index(
-                            rcx.swapchain.clone(),
+                            render_context.swapchain.clone(),
                             image_index,
                         ),
                     )
@@ -505,15 +528,17 @@ impl ApplicationHandler for App {
 
                 match future.map_err(Validated::unwrap) {
                     Ok(future) => {
-                        rcx.previous_frame_end = Some(future.boxed());
+                        render_context.previous_frame_end = Some(future.boxed());
                     }
                     Err(VulkanError::OutOfDate) => {
-                        rcx.recreate_swapchain = true;
-                        rcx.previous_frame_end = Some(sync::now(self.device.clone()).boxed());
+                        render_context.recreate_swapchain = true;
+                        render_context.previous_frame_end =
+                            Some(sync::now(self.device.clone()).boxed());
                     }
                     Err(e) => {
                         println!("failed to flush future: {e}");
-                        rcx.previous_frame_end = Some(sync::now(self.device.clone()).boxed());
+                        render_context.previous_frame_end =
+                            Some(sync::now(self.device.clone()).boxed());
                     }
                 }
             }
@@ -522,12 +547,11 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        let rcx = self.rcx.as_mut().unwrap();
-        rcx.window.request_redraw();
+        let render_context = self.render_context.as_mut().unwrap();
+        render_context.window.request_redraw();
     }
 }
 
-/// This function is called once during initialization, then again whenever the window is resized.
 fn window_size_dependent_setup(
     window_size: PhysicalSize<u32>,
     images: &[Arc<Image>],
@@ -570,10 +594,6 @@ fn window_size_dependent_setup(
         })
         .collect::<Vec<_>>();
 
-    // In the triangle example we use a dynamic viewport, as its a simple example. However in the
-    // teapot example, we recreate the pipelines with a hardcoded viewport instead. This allows the
-    // driver to optimize things, at the cost of slower window resizes.
-    // https://computergraphics.stackexchange.com/questions/5742/vulkan-best-way-of-updating-pipeline-viewport
     let pipeline = {
         let vertex_input_state = [Position::per_vertex(), Uv::per_vertex()]
             .definition(vs)
@@ -631,7 +651,19 @@ fn window_size_dependent_setup(
 mod vs {
     vulkano_shaders::shader! {
         ty: "vertex",
-        path: "src/vert.glsl",
+        src: r"
+            #version 450
+
+            layout(location = 0) in vec2 position;
+            layout(location = 1) in vec2 uv;
+
+            layout(location = 0) out vec2 UV;
+
+            void main() {
+                UV = uv;
+                gl_Position = vec4(position, 0.0, 1.0);
+            }
+        ",
     }
 }
 
