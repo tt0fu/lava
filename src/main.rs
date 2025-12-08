@@ -1,4 +1,8 @@
-use lava::audio::{circular_buffer::CircularBuffer, stream::Stream};
+use lava::audio::{
+    circular_buffer::CircularBuffer,
+    sliding_ft::{SlidingFT, SlidingFTNaive, SlidingFTFast},
+    stream::Stream,
+};
 use std::{error::Error, sync::Arc}; //time::Instant};
 use vulkano::{
     Validated, VulkanError, VulkanLibrary,
@@ -89,11 +93,69 @@ pub const UVS: [Uv; 4] = [
 
 pub const INDICES: [u16; 6] = [0, 1, 2, 1, 2, 3];
 
-fn main() -> Result<(), impl Error> {
-    let event_loop = EventLoop::new().unwrap();
-    let mut app = App::new(&event_loop);
+#[inline]
+fn window(x: f32) -> f32 {
+    if x < -1.0 || x > 1.0 {
+        0.0
+    } else {
+        const A: f32 = 10.0;
+        (A * (1.0 - x * x).max(0.0).sqrt()).exp() * (-A).exp()
+    }
+}
 
-    event_loop.run_app(&mut app)
+fn main() {
+    // -> Result<(), impl Error> {
+    // let event_loop = EventLoop::new().unwrap();
+    // let mut app = App::new(&event_loop);
+
+    // event_loop.run_app(&mut app)
+
+    const STREAM_SIZE: usize = 4096;
+    const SAMPLE_RATE: u32 = 48000;
+    const BUFFER_SIZE: usize = 4096;
+    const BIN_COUNT: usize = 512;
+    const SCREEN_WIDTH: usize = 150;
+    const SCREEN_HEIGHT: usize = 20;
+    let mut stream = Stream::<STREAM_SIZE, 2>::new(SAMPLE_RATE, 4096);
+    // let mut buffer = CircularBuffer::<f32, BUFFER_SIZE>::new(0.0);
+    let mut ft = SlidingFTNaive::<BUFFER_SIZE, BIN_COUNT, SAMPLE_RATE>::new();
+
+    loop {
+        let samples = stream.get_samples();
+        if samples.is_empty() {
+            continue;
+        }
+        // assert!(samples.len() < BUFFER_SIZE);
+        let mono = samples
+            .iter()
+            .map(|s| (s[0] + s[1]) / 2.0)
+            .collect::<Vec<f32>>();
+        for sample in &mono {
+            // buffer.push(sample);
+            ft.push(sample);
+        }
+
+        let bins = ft.get_ft();
+
+        let mut screen = [[' '; SCREEN_WIDTH]; SCREEN_HEIGHT];
+
+        // for i in 0..BUFFER_SIZE {
+        //     let sample = buffer[i];
+        //     let height = (((sample.clamp(-1.0, 1.0) / 2.0 + 0.5) * (SCREEN_HEIGHT as f32)).round()
+        //         as usize)
+        //         .min(SCREEN_HEIGHT - 1);
+        //     screen[height][i * SCREEN_WIDTH / BUFFER_SIZE] = '#'
+        // }
+
+        for i in 0..BIN_COUNT {
+            let bin = bins[i].length() * 2.0;
+            let height = ((bin * (SCREEN_HEIGHT as f32)).round() as usize).min(SCREEN_HEIGHT - 1);
+            screen[SCREEN_HEIGHT - height - 1][i * SCREEN_WIDTH / BIN_COUNT] = '#'
+        }
+        for line in screen {
+            println!("{}", line.iter().collect::<String>())
+        }
+    }
 }
 
 struct App {
@@ -425,8 +487,12 @@ impl ApplicationHandler for App {
                     //     elapsed.as_secs() as f32 + elapsed.subsec_nanos() as f32 / 1_000_000_000.0;
 
                     let new_samples = render_context.stream.get_samples();
-                    for sample in &new_samples {
-                        render_context.samples.push((sample[0] + sample[1]) / 2.0);
+                    let mono = new_samples
+                        .iter()
+                        .map(|s| (s[0] + s[1]) / 2.0)
+                        .collect::<Vec<f32>>();
+                    for sample in &mono {
+                        render_context.samples.push(sample);
                     }
 
                     let uniform_data = fs::Data {

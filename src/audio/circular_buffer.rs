@@ -13,6 +13,15 @@ impl<T: Copy, const SIZE: usize> CircularBuffer<T, SIZE> {
         }
     }
 
+    pub fn push(&mut self, value: &T) {
+        while self.size >= SIZE {
+            self.start = (self.start + 1) % SIZE;
+            self.size -= 1;
+        }
+        self.data[(self.start + self.size) % SIZE] = value.clone();
+        self.size += 1;
+    }
+
     pub fn pop(&mut self) -> Option<T> {
         if self.size <= 0 {
             None
@@ -30,15 +39,6 @@ impl<T: Copy, const SIZE: usize> CircularBuffer<T, SIZE> {
 }
 
 impl<T, const SIZE: usize> CircularBuffer<T, SIZE> {
-    pub fn push(&mut self, value: T) {
-        while self.size >= SIZE {
-            self.start = (self.start + 1) % SIZE;
-            self.size -= 1;
-        }
-        self.data[(self.start + self.size) % SIZE] = value;
-        self.size += 1;
-    }
-
     pub fn size(&self) -> usize {
         self.size
     }

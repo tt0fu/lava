@@ -37,7 +37,7 @@ impl<const BUFFER_SIZE: usize, const CHANNELS : usize> Stream<BUFFER_SIZE, CHANN
                         for i in 0..CHANNELS {
                             static_frame[i] = frame[i];
                         }
-                        buf.push(static_frame);
+                        buf.push(&static_frame);
                     }
                 },
                 |err| eprintln!("Stream error: {}", err),
