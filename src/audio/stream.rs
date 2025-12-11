@@ -1,4 +1,4 @@
-use crate::audio::circular_buffer::CircularBuffer;
+use super::CircularBuffer;
 
 use cpal::{
     SampleRate,
@@ -6,17 +6,16 @@ use cpal::{
 };
 use std::sync::{Arc, Mutex};
 
-pub struct Stream<const BUFFER_SIZE: usize, const CHANNELS : usize> {
+pub struct Stream<const BUFFER_SIZE: usize, const CHANNELS: usize> {
     buffer: Arc<Mutex<CircularBuffer<[f32; CHANNELS], BUFFER_SIZE>>>,
     _stream: cpal::Stream,
 }
 
-impl<const BUFFER_SIZE: usize, const CHANNELS : usize> Stream<BUFFER_SIZE, CHANNELS> {
+impl<const BUFFER_SIZE: usize, const CHANNELS: usize> Stream<BUFFER_SIZE, CHANNELS> {
     pub fn new(sample_rate: u32, buffer_size: u32) -> Self {
         let device = cpal::default_host()
             .default_input_device()
             .expect("No input device available");
-
 
         let config = cpal::StreamConfig {
             channels: CHANNELS as u16,
@@ -25,7 +24,6 @@ impl<const BUFFER_SIZE: usize, const CHANNELS : usize> Stream<BUFFER_SIZE, CHANN
         };
         let buffer = Arc::new(Mutex::new(CircularBuffer::new([0.0; CHANNELS])));
         let buffer_clone = buffer.clone();
-
 
         let stream = device
             .build_input_stream(

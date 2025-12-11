@@ -4,7 +4,7 @@ const uint SAMPLE_COUNT = 4096u;
 const uint BIN_COUNT = 512u;
 const float SAMPLE_COUNT_F = float(SAMPLE_COUNT);
 const float BIN_COUNT_F = float(BIN_COUNT);
-const float SAMPLE_RATE = 44100.0;
+const float SAMPLE_RATE = 48000.0;
 const float LOWEST_FREQUENCY = SAMPLE_RATE / SAMPLE_COUNT_F;
 const float EXP_BINS = floor(BIN_COUNT_F / log2(SAMPLE_RATE / (2.0 * LOWEST_FREQUENCY)));
 
@@ -24,12 +24,10 @@ layout(set = 0, binding = 0) uniform Data {
 
 float get_raw_sample(int sample_index) {
     if (sample_index < 0) {
-        // sample_index += int(period * ceil(float(-sample_index) / period));
-        sample_index = 0;
+        sample_index += int(period * ceil(float(-sample_index) / period));
     }
     if (sample_index >= int(SAMPLE_COUNT)) {
-        // sample_index -= int(period * ceil(float(sample_index - int(SAMPLE_COUNT) + 1) / period));
-        sample_index = int(SAMPLE_COUNT) - 1;
+        sample_index -= int(period * ceil(float(sample_index - int(SAMPLE_COUNT) + 1) / period));
     }
     return samples_data[(uint(sample_index) + samples_start) % SAMPLE_COUNT];
 }
@@ -85,8 +83,8 @@ float wave_distance(float sample_index, float sample_height) {
 
 void main() {
     float sample_index = UV.x * float(SAMPLE_COUNT);
-    float dist = wave_distance(sample_index, 1.0 - UV.y); // + center_sample - float(SAMPLE_COUNT) * focus
-    float val = fade(dist * float(SAMPLE_COUNT) / line_width);
+    float dist = wave_distance(sample_index + center_sample - float(SAMPLE_COUNT) * focus, 1.0 - UV.y); //+ center_sample - float(SAMPLE_COUNT) * focus;
+    float val = fade(dist * float(SAMPLE_COUNT) / line_width); // + fade(abs(sample_index - center_sample) * line_width / float(SAMPLE_COUNT));
     //float val = step(abs(1.0 - UV.y - bass), 0.001);
     // vec3 col = lch_srgb(vec3(0.8, 0.1, fract(pattern(UV * vec2(scale_x, 1.0), chrono) * 2.0) + chrono * 2.0));
     //COLOR = vec4(lch_srgb(vec3(0.7, 0.1, pattern(UV * 2.0, chrono))), 1.0);

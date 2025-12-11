@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct CircularBuffer<T, const SIZE: usize> {
     start: usize,
     size: usize,
