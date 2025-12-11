@@ -79,17 +79,30 @@
             lockFile = ./Cargo.lock;
           };
           src = ./.;
-          buildInputs = packages;
-          nativeBuildInputs = packages;
+          nativeBuildInputs = with pkgs; [
+            pkg-config
+            makeWrapper
+
+            alsa-lib
+            shaderc
+          ];
           env = with pkgs; {
-            LD_LIBRARY_PATH = lib.makeLibraryPath packages;
             PKG_CONFIG_PATH = "${alsa-lib.dev}/lib/pkgconfig";
             SHADERC_LIB_DIR = lib.makeLibraryPath [ shaderc ];
-            VK_LAYER_PATH = "${vulkan-validation-layers}/share/vulkan/explicit_layer.d";
           };
           postFixup = ''
             wrapProgram $out/bin/lava \
-              --set LD_LIBRARY_PATH ${pkgs.lib.makeLibraryPath packages}
+              --set LD_LIBRARY_PATH ${
+                pkgs.lib.makeLibraryPath (
+                  with pkgs;
+                  [
+                    vulkan-loader
+                    vulkan-tools
+                    libxkbcommon
+                    wayland
+                  ]
+                )
+              }
           '';
         };
       }
