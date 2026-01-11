@@ -15,7 +15,7 @@ use vulkano::{
     },
     sync::{self, GpuFuture},
 };
-use winit::{event_loop::ActiveEventLoop, window::Window};
+use winit::{event_loop::ActiveEventLoop, platform::x11::WindowAttributesExtX11, window::Window};
 
 pub struct RenderContext {
     pub window: Arc<Window>,
@@ -35,7 +35,14 @@ impl RenderContext {
     pub fn new(render_engine: &RenderEngine, event_loop: &ActiveEventLoop) -> Self {
         let window = Arc::new(
             event_loop
-                .create_window(Window::default_attributes())
+                .create_window(
+                    Window::default_attributes()
+                        .with_title("lava visualizer")
+                        .with_name("org.ttofu.lava", "lava window instance")
+                        .with_decorations(false)
+                        .with_resizable(false)
+                        .with_inner_size(winit::dpi::LogicalSize::new(1920, 1080)),
+                )
                 .unwrap(),
         );
         let surface = Surface::from_window(render_engine.instance.clone(), window.clone()).unwrap();
@@ -173,15 +180,17 @@ impl RenderContext {
             }
 
             let samples_buffer = self.analyzer.get_buffer();
-            let stabilization_data = self.analyzer.get_stabilization_info();
+            let analysis_data = self.analyzer.get_analysis_info();
 
             let uniform_data = fs::Data {
                 scale_x: (window_size.width as f32 / window_size.height as f32).into(),
                 samples_start: (samples_buffer.start() as u32).into(),
                 samples_data: samples_buffer.data().map(|x| x.into()),
-                period: stabilization_data.period.into(),
-                focus: stabilization_data.focus.into(),
-                center_sample: stabilization_data.center_sample.into(),
+                period: analysis_data.period.into(),
+                focus: analysis_data.focus.into(),
+                center_sample: analysis_data.center_sample.into(),
+                bass: analysis_data.bass.into(),
+                chrono: analysis_data.chrono.into(),
                 line_width: 50.0,
             };
 

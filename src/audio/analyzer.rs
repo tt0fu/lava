@@ -7,11 +7,13 @@ struct Consts {
     exp_bins: f32,
 }
 
-#[derive(Clone)]
-pub struct StabilizationInfo {
+#[derive(Clone, Copy)]
+pub struct AnalysisInfo {
     pub period: f32,
     pub focus: f32,
     pub center_sample: f32,
+    pub bass: f32,
+    pub chrono: f32,
 }
 
 struct BinData {
@@ -26,12 +28,14 @@ pub struct Analyzer<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMP
 
     buffer: CircularBuffer<f32, BUFFER_SIZE>,
     gain: f32,
+    delta: u64,
 
     bin_data: [BinData; BIN_COUNT],
     dft: Option<[Vec2; BIN_COUNT]>,
 
     focus: f32,
-    stabilization_info: Option<StabilizationInfo>,
+    chrono: u64,
+    analysis_info: Option<AnalysisInfo>,
 }
 
 impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
@@ -46,6 +50,14 @@ impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
         }
     }
 
+    fn bin(exp_bins: f32, lowest_frequency: f32, frequency: f32) -> f32 {
+        (exp_bins * (frequency / lowest_frequency).log2()).clamp(0.0, (BIN_COUNT - 1) as f32)
+    }
+
+    fn frequency(exp_bins: f32, lowest_frequency: f32, bin: f32) -> f32 {
+        lowest_frequency * (bin / exp_bins).exp2()
+    }
+
     pub fn new() -> Self {
         let mut bin_data = [(); BIN_COUNT].map(|_| BinData {
             window_start: 0,
@@ -57,11 +69,11 @@ impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
         let buffer_size_f = BUFFER_SIZE as f32;
         let sample_rate_f = SAMPLE_RATE as f32;
 
-        let lowest_freq = sample_rate_f / buffer_size_f;
+        let lowest_frequency = sample_rate_f / buffer_size_f;
         let exp_bins = (BIN_COUNT as f32 / (buffer_size_f / 2.0).log2()).floor();
 
         for bin in 0..BIN_COUNT {
-            let frequency = lowest_freq * (bin as f32 / exp_bins).exp2();
+            let frequency = Self::frequency(exp_bins, lowest_frequency, bin as f32);
             let sample_period = SAMPLE_RATE as f32 / frequency;
             let phase_delta = PI * 2.0 / sample_period;
             let window_size = (8.0 * sample_period).min(BUFFER_SIZE as f32);
@@ -99,16 +111,26 @@ impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
 
         Self {
             consts: Consts {
-                lowest_freq,
+                lowest_freq: lowest_frequency,
                 exp_bins,
             },
             buffer: CircularBuffer::new(0.0),
             gain: 1.0,
+            delta: 0,
             bin_data,
             dft: None,
             focus: 0.5,
-            stabilization_info: None,
+            chrono: 0,
+            analysis_info: None,
         }
+    }
+
+    fn get_bin(&self, frequency: f32) -> f32 {
+        Self::bin(self.consts.exp_bins, self.consts.lowest_freq, frequency)
+    }
+
+    fn get_frequency(&self, bin: f32) -> f32 {
+        Self::frequency(self.consts.exp_bins, self.consts.lowest_freq, bin)
     }
 
     pub fn push(&mut self, new_sample: &f32) {
@@ -121,76 +143,97 @@ impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
             self.gain /= new_sample.abs();
         }
         self.buffer.push(&(new_sample * self.gain));
+        self.delta += 1;
 
         self.dft = None;
-        self.stabilization_info = None;
+        self.analysis_info = None;
     }
 
     pub fn get_buffer(&self) -> CircularBuffer<f32, BUFFER_SIZE> {
         self.buffer.clone()
     }
 
-    fn compute_ft(&mut self) {
-        if self.dft == None {
-            let mut dft = [Vec2::new(0.0, 0.0); BIN_COUNT];
-            for bin in 0..BIN_COUNT {
-                let bin_data = &self.bin_data[bin];
-                let mut amplitude = Vec2::new(0.0, 0.0);
-
-                for i in 0..bin_data.window_weights.len() {
-                    let sample_index = bin_data.window_start + i;
-                    let mult = self.buffer[sample_index] * bin_data.window_weights[i];
-                    amplitude += bin_data.complex_exponentials[i] * mult;
-                }
-                dft[bin] = amplitude / bin_data.total_window;
-            }
-            self.dft = Some(dft);
-        }
-    }
-
-    fn compute_stabilization_info(&mut self) {
-        self.compute_ft();
-        let dft = self.dft.unwrap();
-        let mut mx = 0.0;
-        let mut max_bin = 1;
-        let mut prev = dft[0].length();
-        let mut cur = dft[1].length();
-        let mut next = dft[2].length();
-        for i in 1..(BIN_COUNT - 3) {
-            if (cur >= prev)
-                && (cur >= next)
-                && (cur * (1.0 - (i as f32) / (BIN_COUNT as f32)) > mx)
-            {
-                mx = cur;
-                max_bin = i;
-            }
-
-            prev = cur;
-            cur = next;
-            next = dft[i + 3].length();
-        }
-        let frequency =
-            (2.0 as f32).powf(max_bin as f32 / self.consts.exp_bins) * self.consts.lowest_freq;
-
-        let period = SAMPLE_RATE as f32 / frequency;
-        let phase = dft[max_bin];
-        let angle = (phase.y.atan2(phase.x)) / (PI * 2.0) - 0.25;
-        let center_sample = (angle + (BUFFER_SIZE as f32 * self.focus / period).ceil()) * period;
-
-        self.stabilization_info = Some(StabilizationInfo {
-            period,
-            focus: self.focus,
-            center_sample,
-        })
-    }
-
     pub fn get_ft(&mut self) -> [Vec2; BIN_COUNT] {
-        self.compute_ft();
-        self.dft.unwrap()
+        match &self.dft {
+            Some(dft) => dft.clone(),
+            None => {
+                let mut dft = [Vec2::new(0.0, 0.0); BIN_COUNT];
+                for bin in 0..BIN_COUNT {
+                    let bin_data = &self.bin_data[bin];
+                    let mut amplitude = Vec2::new(0.0, 0.0);
+
+                    for i in 0..bin_data.window_weights.len() {
+                        let sample_index = bin_data.window_start + i;
+                        let mult = self.buffer[sample_index] * bin_data.window_weights[i];
+                        amplitude += bin_data.complex_exponentials[i] * mult;
+                    }
+                    dft[bin] = amplitude / bin_data.total_window;
+                }
+                self.dft = Some(dft);
+                dft
+            }
+        }
     }
 
-    pub fn get_stabilization_info(&mut self) -> StabilizationInfo {
-        self.compute_stabilization_info();
-        self.stabilization_info.clone().unwrap()
+    fn get_bass_eq(&self, bin: f32) -> f32 {
+        let frequency = self.get_frequency(bin);
+        (1.0 - frequency / 200.0).max(0.0)
+    }
+
+    pub fn get_analysis_info(&mut self) -> AnalysisInfo {
+        match &self.analysis_info {
+            Some(info) => info.clone(),
+            None => {
+                let dft = self.get_ft();
+                let mut mx = 0.0;
+                let mut max_bin = 1;
+                let mut prev = dft[0].length();
+                let mut cur = dft[1].length();
+                let mut next = dft[2].length();
+
+                let mut bass_total = self.get_bass_eq(0.0);
+                let mut bass_sum = bass_total * prev;
+
+                for bin in 1..(BIN_COUNT - 3) {
+                    let bass_eq = self.get_bass_eq(bin as f32);
+                    bass_sum += bass_eq * cur;
+                    bass_total += bass_eq;
+
+                    if (cur >= prev)
+                        && (cur >= next)
+                        && (cur * (1.0 - (bin as f32) / (BIN_COUNT as f32)) > mx)
+                    {
+                        mx = cur;
+                        max_bin = bin;
+                    }
+
+                    prev = cur;
+                    cur = next;
+                    next = dft[bin + 3].length();
+                }
+
+                let bass = (bass_sum / bass_total * 10.0).clamp(0.0, 1.0);
+                self.chrono += ((self.delta as f32) * bass) as u64;
+                self.delta = 0;
+
+                let frequency = self.get_frequency(max_bin as f32);
+                let period = SAMPLE_RATE as f32 / frequency;
+                let phase = dft[max_bin];
+                let angle = (phase.y.atan2(phase.x)) / (PI * 2.0) - 0.25;
+                let center_sample =
+                    (angle + (BUFFER_SIZE as f32 * self.focus / period).ceil()) * period;
+
+                let ans = AnalysisInfo {
+                    period,
+                    focus: self.focus,
+                    center_sample,
+                    bass,
+                    chrono: (self.chrono as f32) / (SAMPLE_RATE as f32),
+                };
+
+                self.analysis_info = Some(ans);
+                ans
+            }
+        }
     }
 }

@@ -3,7 +3,6 @@ mod video;
 
 use audio::{Analyzer, Stream};
 use std::error::Error;
-use vulkano::{buffer::BufferContents, pipeline::graphics::vertex_input::Vertex};
 use winit::event_loop::EventLoop;
 
 // fn get_braile(vecs: Vec<u8>) -> char {
