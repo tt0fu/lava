@@ -1,4 +1,4 @@
 vulkano_shaders::shader! {
     ty: "fragment",
-    path: "src/video/fs.glsl",
+    path: "src/video/shaders/fs.glsl",
 }

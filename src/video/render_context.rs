@@ -1,4 +1,4 @@
-use super::{RenderEngine, fs, vs, window_size_dependent_setup};
+use super::{RenderEngine, shaders::{fs, vs}, window_size_dependent_setup};
 use crate::audio::{Analyzer, Stream};
 use std::sync::Arc;
 use vulkano::{
@@ -134,7 +134,7 @@ impl RenderContext {
             recreate_swapchain: false,
             previous_frame_end,
             // time_start,
-            stream: Stream::new(48000, 4096),
+            stream: Stream::new(48000, 2048),
             analyzer: Analyzer::new(),
         }
     }

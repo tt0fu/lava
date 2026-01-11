@@ -4,8 +4,7 @@ pub mod render_context;
 pub mod render_engine;
 pub mod window_size_dependent_setup;
 pub mod mesh;
-pub mod vs;
-pub mod fs;
+pub mod shaders;
 
 pub use app::App;
 pub use model::{Position, Uv};
