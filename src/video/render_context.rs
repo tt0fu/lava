@@ -5,7 +5,7 @@ use super::{
     window_size_dependent_setup,
 };
 use glam::{Vec2, f32::Mat3, vec2};
-use std::sync::Arc;
+use std::{f32, sync::Arc};
 use vulkano::{
     Validated, VulkanError,
     buffer::{BufferContents, allocator::SubbufferAllocator},
@@ -21,7 +21,10 @@ use vulkano::{
     },
     sync::{self, GpuFuture},
 };
-use winit::{event_loop::ActiveEventLoop, platform::x11::WindowAttributesExtX11, window::Window};
+
+#[cfg(target_os = "linux")]
+use winit::platform::wayland::WindowAttributesExtWayland;
+use winit::{event_loop::ActiveEventLoop, window::Window, window::WindowAttributes};
 
 pub struct RenderContext {
     pub window: Arc<Window>,
@@ -39,15 +42,25 @@ pub struct RenderContext {
 }
 
 impl RenderContext {
+    #[cfg(not(target_os = "linux"))]
+    fn spawn_window() -> WindowAttributes {
+        Window::default_attributes()
+    }
+
+    #[cfg(target_os = "linux")]
+    fn spawn_window() -> WindowAttributes {
+        Window::default_attributes().with_name("org.ttofu.lava", "lava window instance")
+    }
+
     pub fn new(render_engine: &RenderEngine, event_loop: &ActiveEventLoop) -> Self {
         let window = Arc::new(
             event_loop
                 .create_window(
-                    Window::default_attributes()
+                    Self::spawn_window()
                         .with_title("lava visualizer")
-                        .with_name("org.ttofu.lava", "lava window instance")
                         .with_decorations(false)
                         .with_resizable(false)
+                        // .with_inner_size(winit::dpi::LogicalSize::new(1080, 1920)),
                         .with_inner_size(winit::dpi::LogicalSize::new(1920, 1080)),
                 )
                 .unwrap(),
@@ -133,6 +146,30 @@ impl RenderContext {
                 angle: 0.0,
                 translation: vec2(0.0, -0.5),
             },
+            // Panel {
+            //     variant: PanelVariant::WAVEFORM,
+            //     scale: vec2(1920.0 / 1080.0, -0.5 * 1080.0 / 1920.0),
+            //     angle: f32::consts::FRAC_PI_2,
+            //     translation: vec2(0.5 * 1080.0 / 1920.0, 0.0),
+            // },
+            // Panel {
+            //     variant: PanelVariant::WAVEFORM,
+            //     scale: vec2(1920.0 / 1080.0, 0.5 * 1080.0 / 1920.0),
+            //     angle: f32::consts::FRAC_PI_2,
+            //     translation: vec2(-0.5 * 1080.0 / 1920.0, 0.0),
+            // },
+            // Panel {
+            //     variant: PanelVariant::SPECTROGRAM,
+            //     scale: vec2(1.0, -0.5),
+            //     angle: 0.0,
+            //     translation: vec2(0.0, 0.5),
+            // },
+            // Panel {
+            //     variant: PanelVariant::SPECTROGRAM,
+            //     scale: vec2(1.0, 0.5),
+            //     angle: 0.0,
+            //     translation: vec2(0.0, -0.5),
+            // },
         ];
 
         let vs = vs::load(render_engine.device.clone())
@@ -312,7 +349,7 @@ impl RenderContext {
                         waveform::ScaleX {
                             scale_x: ((window_size.width as f32 / window_size.height as f32)
                                 * (panel.scale.x.abs() / panel.scale.y.abs()))
-                                .into(),
+                            .into(),
                         },
                     ),
                     Self::create_write_descriptor_set(
