@@ -1,2 +1,3 @@
+pub mod spectrogram;
 pub mod vs;
-pub mod fs;
+pub mod waveform;

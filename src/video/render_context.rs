@@ -1,8 +1,14 @@
-use super::{RenderEngine, shaders::{fs, vs}, window_size_dependent_setup};
-use crate::audio::{Analyzer, Stream};
+use super::{
+    super::audio::{Analyzer, Stream},
+    Panel, PanelVariant, RenderEngine,
+    shaders::{spectrogram, vs, waveform},
+    window_size_dependent_setup,
+};
+use glam::{Vec2, f32::Mat3, vec2};
 use std::sync::Arc;
 use vulkano::{
     Validated, VulkanError,
+    buffer::{BufferContents, allocator::SubbufferAllocator},
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo},
     descriptor_set::{DescriptorSet, WriteDescriptorSet},
     format::Format,
@@ -23,8 +29,9 @@ pub struct RenderContext {
     pub render_pass: Arc<RenderPass>,
     pub framebuffers: Vec<Arc<Framebuffer>>,
     pub vs: EntryPoint,
-    pub fs: EntryPoint,
-    pub pipeline: Arc<GraphicsPipeline>,
+    pub fs: Vec<EntryPoint>,
+    pub panels: Vec<Panel>,
+    pub pipelines: Vec<Arc<GraphicsPipeline>>,
     pub recreate_swapchain: bool,
     pub previous_frame_end: Option<Box<dyn GpuFuture>>,
     pub stream: Stream<4096, 2>,
@@ -101,16 +108,44 @@ impl RenderContext {
         )
         .unwrap();
 
+        let panels = vec![
+            Panel {
+                variant: PanelVariant::WAVEFORM,
+                scale: vec2(1.0, 0.5),
+                angle: 0.0,
+                translation: vec2(0.0, 0.5),
+            },
+            Panel {
+                variant: PanelVariant::WAVEFORM,
+                scale: vec2(1.0, -0.5),
+                angle: 0.0,
+                translation: vec2(0.0, -0.5),
+            },
+            Panel {
+                variant: PanelVariant::SPECTROGRAM,
+                scale: vec2(1.0, -0.5),
+                angle: 0.0,
+                translation: vec2(0.0, 0.5),
+            },
+            Panel {
+                variant: PanelVariant::SPECTROGRAM,
+                scale: vec2(1.0, 0.5),
+                angle: 0.0,
+                translation: vec2(0.0, -0.5),
+            },
+        ];
+
         let vs = vs::load(render_engine.device.clone())
             .unwrap()
             .entry_point("main")
             .unwrap();
-        let fs = fs::load(render_engine.device.clone())
-            .unwrap()
-            .entry_point("main")
-            .unwrap();
 
-        let (framebuffers, pipeline) = window_size_dependent_setup(
+        let fs = panels
+            .iter()
+            .map(|p| p.get_shader_entry_point(&render_engine.device))
+            .collect();
+
+        let (framebuffers, pipelines) = window_size_dependent_setup(
             window_size,
             &images,
             &render_pass,
@@ -121,8 +156,6 @@ impl RenderContext {
 
         let previous_frame_end = Some(sync::now(render_engine.device.clone()).boxed());
 
-        // let time_start = Instant::now();
-
         Self {
             window,
             swapchain,
@@ -130,13 +163,23 @@ impl RenderContext {
             framebuffers,
             vs,
             fs,
-            pipeline,
+            panels,
+            pipelines,
             recreate_swapchain: false,
             previous_frame_end,
-            // time_start,
             stream: Stream::new(48000, 2048),
             analyzer: Analyzer::new(),
         }
+    }
+
+    fn create_write_descriptor_set<T: BufferContents>(
+        uniform_buffer_allocator: &SubbufferAllocator,
+        binding: u32,
+        content: T,
+    ) -> WriteDescriptorSet {
+        let buffer = uniform_buffer_allocator.allocate_sized().unwrap();
+        *buffer.write().unwrap() = content;
+        WriteDescriptorSet::buffer(binding, buffer)
     }
 
     pub fn redraw(&mut self, render_engine: &RenderEngine) {
@@ -158,7 +201,7 @@ impl RenderContext {
                 .expect("failed to recreate swapchain");
 
             self.swapchain = new_swapchain;
-            (self.framebuffers, self.pipeline) = window_size_dependent_setup(
+            (self.framebuffers, self.pipelines) = window_size_dependent_setup(
                 window_size,
                 &new_images,
                 &self.render_pass,
@@ -168,49 +211,6 @@ impl RenderContext {
             );
             self.recreate_swapchain = false;
         }
-
-        let uniform_buffer = {
-            let new_samples = self.stream.get_samples();
-            let mono = new_samples
-                .iter()
-                .map(|s| (s[0] + s[1]) / 2.0)
-                .collect::<Vec<f32>>();
-            for sample in &mono {
-                self.analyzer.push(sample);
-            }
-
-            let samples_buffer = self.analyzer.get_buffer();
-            let analysis_data = self.analyzer.get_analysis_info();
-
-            let uniform_data = fs::Data {
-                scale_x: (window_size.width as f32 / window_size.height as f32).into(),
-                samples_start: (samples_buffer.start() as u32).into(),
-                samples_data: samples_buffer.data().map(|x| x.into()),
-                period: analysis_data.period.into(),
-                focus: analysis_data.focus.into(),
-                center_sample: analysis_data.center_sample.into(),
-                bass: analysis_data.bass.into(),
-                chrono: analysis_data.chrono.into(),
-                line_width: 50.0,
-            };
-
-            let buffer = render_engine
-                .uniform_buffer_allocator
-                .allocate_sized()
-                .unwrap();
-            *buffer.write().unwrap() = uniform_data;
-
-            buffer
-        };
-
-        let layout = &self.pipeline.layout().set_layouts()[0];
-        let descriptor_set = DescriptorSet::new(
-            render_engine.descriptor_set_allocator.clone(),
-            layout.clone(),
-            [WriteDescriptorSet::buffer(0, uniform_buffer)],
-            [],
-        )
-        .unwrap();
 
         let (image_index, suboptimal, acquire_future) =
             match acquire_next_image(self.swapchain.clone(), None).map_err(Validated::unwrap) {
@@ -247,15 +247,6 @@ impl RenderContext {
                 Default::default(),
             )
             .unwrap()
-            .bind_pipeline_graphics(self.pipeline.clone())
-            .unwrap()
-            .bind_descriptor_sets(
-                PipelineBindPoint::Graphics,
-                self.pipeline.layout().clone(),
-                0,
-                descriptor_set,
-            )
-            .unwrap()
             .bind_vertex_buffers(
                 0,
                 (
@@ -266,8 +257,125 @@ impl RenderContext {
             .unwrap()
             .bind_index_buffer(render_engine.mesh.index_buffer.clone())
             .unwrap();
-        unsafe { builder.draw_indexed(render_engine.mesh.index_buffer.len() as u32, 1, 0, 0, 0) }
+
+        let to_screen = Mat3::from_scale(Vec2::new(
+            window_size.height as f32 / window_size.width as f32,
+            1.0,
+        ));
+        let to_normalized = Mat3::from_scale(Vec2::new(
+            window_size.width as f32 / window_size.height as f32,
+            1.0,
+        ));
+        let new_samples = self.stream.get_samples();
+        let mono = new_samples
+            .iter()
+            .map(|s| (s[0] + s[1]) / 2.0)
+            .collect::<Vec<f32>>();
+        for sample in &mono {
+            self.analyzer.push(sample);
+        }
+        let samples_buffer = self.analyzer.get_buffer();
+        let analysis_data = self.analyzer.get_analysis_data();
+
+        for i in (0..(self.panels.len())).rev() {
+            let panel = &self.panels[i];
+
+            let layout = self.pipelines[i].layout().set_layouts()[0].clone();
+
+            let transform_write = {
+                let transform = to_screen
+                    * Mat3::from_scale_angle_translation(
+                        panel.scale,
+                        panel.angle,
+                        panel.translation,
+                    )
+                    * to_normalized;
+                Self::create_write_descriptor_set(
+                    &render_engine.uniform_buffer_allocator,
+                    0,
+                    vs::Transform {
+                        transform: [
+                            transform.x_axis.to_array().into(),
+                            transform.y_axis.to_array().into(),
+                            transform.z_axis.to_array().into(),
+                        ],
+                    },
+                )
+            };
+
+            let writes = match panel.variant {
+                PanelVariant::WAVEFORM => vec![
+                    transform_write,
+                    Self::create_write_descriptor_set(
+                        &render_engine.uniform_buffer_allocator,
+                        1,
+                        waveform::ScaleX {
+                            scale_x: ((window_size.width as f32 / window_size.height as f32)
+                                * (panel.scale.x.abs() / panel.scale.y.abs()))
+                                .into(),
+                        },
+                    ),
+                    Self::create_write_descriptor_set(
+                        &render_engine.uniform_buffer_allocator,
+                        2,
+                        waveform::Samples {
+                            samples_start: (samples_buffer.start() as u32).into(),
+                            samples_data: samples_buffer.data().map(|x| x.into()),
+                        },
+                    ),
+                    Self::create_write_descriptor_set(
+                        &render_engine.uniform_buffer_allocator,
+                        3,
+                        waveform::Stabilization {
+                            period: analysis_data.period.into(),
+                            focus: analysis_data.focus.into(),
+                            center_sample: analysis_data.center_sample.into(),
+                        },
+                    ),
+                    Self::create_write_descriptor_set(
+                        &render_engine.uniform_buffer_allocator,
+                        5,
+                        waveform::Bass {
+                            bass: analysis_data.bass.into(),
+                            chrono: analysis_data.chrono.into(),
+                        },
+                    ),
+                ],
+                PanelVariant::SPECTROGRAM => vec![
+                    transform_write,
+                    Self::create_write_descriptor_set(
+                        &render_engine.uniform_buffer_allocator,
+                        4,
+                        spectrogram::Dft {
+                            dft: analysis_data.dft.map(|bin| [bin.x, bin.y].into()),
+                        },
+                    ),
+                ],
+            };
+
+            let descriptor_set = DescriptorSet::new(
+                render_engine.descriptor_set_allocator.clone(),
+                layout,
+                writes,
+                [],
+            )
             .unwrap();
+
+            builder
+                .bind_pipeline_graphics(self.pipelines[i].clone())
+                .unwrap()
+                .bind_descriptor_sets(
+                    PipelineBindPoint::Graphics,
+                    self.pipelines[i].layout().clone(),
+                    0,
+                    descriptor_set,
+                )
+                .unwrap();
+            unsafe {
+                builder.draw_indexed(render_engine.mesh.index_buffer.len() as u32, 1, 0, 0, 0)
+            }
+            .unwrap();
+        }
 
         builder.end_render_pass(Default::default()).unwrap();
 

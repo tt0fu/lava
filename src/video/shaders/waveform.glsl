@@ -1,28 +1,16 @@
 #version 450
 
-const uint SAMPLE_COUNT = 4096u;
-const uint BIN_COUNT = 512u;
-const float SAMPLE_COUNT_F = float(SAMPLE_COUNT);
-const float BIN_COUNT_F = float(BIN_COUNT);
-const float SAMPLE_RATE = 48000.0;
-const float LOWEST_FREQUENCY = SAMPLE_RATE / SAMPLE_COUNT_F;
-const float EXP_BINS = floor(BIN_COUNT_F / log2(SAMPLE_RATE / (2.0 * LOWEST_FREQUENCY)));
+#include "consts.glsl"
 
 layout(location = 0) in vec2 UV;
 layout(location = 0) out vec4 COLOR;
 
-layout(set = 0, binding = 0) uniform Data {
-    float scale_x;
-    uint samples_start;
-    float samples_data[SAMPLE_COUNT];
-    float period;
-    float focus;
-    float center_sample;
-    float bass;
-    float chrono;
+#include "uniforms/scale_x.glsl"
+#include "uniforms/samples.glsl"
+#include "uniforms/stabilization.glsl"
+#include "uniforms/bass.glsl"
 
-    float line_width;
-};
+float line_width = 50.0;
 
 #include "oklab.glsl"
 #include "noise.glsl"
@@ -88,8 +76,8 @@ float wave_distance(float sample_index, float sample_height) {
 
 void main() {
     float sample_index = UV.x * float(SAMPLE_COUNT);
-    float dist = wave_distance(sample_index + center_sample - float(SAMPLE_COUNT) * focus, 1.0 - UV.y); //+ center_sample - float(SAMPLE_COUNT) * focus;
-    float val = fade(dist * float(SAMPLE_COUNT) / line_width); // + fade(abs(sample_index - center_sample) * line_width / float(SAMPLE_COUNT));
+    float dist = wave_distance(sample_index + center_sample - float(SAMPLE_COUNT) * focus, 1.0 - UV.y);
+    float val = fade(dist * float(SAMPLE_COUNT) / line_width);
     vec3 col = lch_srgb(vec3(0.8, 0.1, fract(pattern(UV * vec2(scale_x, 1.0), chrono) * 2.0) + chrono * 2.0));
     COLOR = vec4(val * col, 1.0);
 }

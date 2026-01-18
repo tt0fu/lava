@@ -1,7 +1,7 @@
 use super::{Position, Uv};
 use std::sync::Arc;
 use vulkano::{
-    device::DeviceOwned,
+    device::{Device, DeviceOwned},
     format::Format,
     image::{Image, ImageCreateInfo, ImageType, ImageUsage, view::ImageView},
     memory::allocator::{AllocationCreateInfo, StandardMemoryAllocator},
@@ -24,14 +24,71 @@ use vulkano::{
 };
 use winit::dpi::PhysicalSize;
 
+fn create_pipeline(
+    device: &Arc<Device>,
+    window_size: PhysicalSize<u32>,
+    render_pass: &Arc<RenderPass>,
+    vs: &EntryPoint,
+    fs: &EntryPoint,
+) -> Arc<GraphicsPipeline> {
+    let vertex_input_state = [Position::per_vertex(), Uv::per_vertex()]
+        .definition(vs)
+        .unwrap();
+    let stages = [
+        PipelineShaderStageCreateInfo::new(vs.clone()),
+        PipelineShaderStageCreateInfo::new(fs.clone()),
+    ];
+    let layout = PipelineLayout::new(
+        device.clone(),
+        PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages)
+            .into_pipeline_layout_create_info(device.clone())
+            .unwrap(),
+    )
+    .unwrap();
+    let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
+
+    GraphicsPipeline::new(
+        device.clone(),
+        None,
+        GraphicsPipelineCreateInfo {
+            stages: stages.into_iter().collect(),
+            vertex_input_state: Some(vertex_input_state),
+            input_assembly_state: Some(InputAssemblyState::default()),
+            viewport_state: Some(ViewportState {
+                viewports: [Viewport {
+                    offset: [0.0, 0.0],
+                    extent: window_size.into(),
+                    depth_range: 0.0..=1.0,
+                }]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            }),
+            rasterization_state: Some(RasterizationState::default()),
+            depth_stencil_state: Some(DepthStencilState {
+                depth: Some(DepthState::simple()),
+                ..Default::default()
+            }),
+            multisample_state: Some(MultisampleState::default()),
+            color_blend_state: Some(ColorBlendState::with_attachment_states(
+                subpass.num_color_attachments(),
+                ColorBlendAttachmentState::default(),
+            )),
+            subpass: Some(subpass.into()),
+            ..GraphicsPipelineCreateInfo::layout(layout)
+        },
+    )
+    .unwrap()
+}
+
 pub fn window_size_dependent_setup(
     window_size: PhysicalSize<u32>,
     images: &[Arc<Image>],
     render_pass: &Arc<RenderPass>,
     memory_allocator: &Arc<StandardMemoryAllocator>,
     vs: &EntryPoint,
-    fs: &EntryPoint,
-) -> (Vec<Arc<Framebuffer>>, Arc<GraphicsPipeline>) {
+    fs: &Vec<EntryPoint>,
+) -> (Vec<Arc<Framebuffer>>, Vec<Arc<GraphicsPipeline>>) {
     let device = memory_allocator.device();
 
     let depth_buffer = ImageView::new_default(
@@ -66,56 +123,10 @@ pub fn window_size_dependent_setup(
         })
         .collect::<Vec<_>>();
 
-    let pipeline = {
-        let vertex_input_state = [Position::per_vertex(), Uv::per_vertex()]
-            .definition(vs)
-            .unwrap();
-        let stages = [
-            PipelineShaderStageCreateInfo::new(vs.clone()),
-            PipelineShaderStageCreateInfo::new(fs.clone()),
-        ];
-        let layout = PipelineLayout::new(
-            device.clone(),
-            PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages)
-                .into_pipeline_layout_create_info(device.clone())
-                .unwrap(),
-        )
-        .unwrap();
-        let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
-
-        GraphicsPipeline::new(
-            device.clone(),
-            None,
-            GraphicsPipelineCreateInfo {
-                stages: stages.into_iter().collect(),
-                vertex_input_state: Some(vertex_input_state),
-                input_assembly_state: Some(InputAssemblyState::default()),
-                viewport_state: Some(ViewportState {
-                    viewports: [Viewport {
-                        offset: [0.0, 0.0],
-                        extent: window_size.into(),
-                        depth_range: 0.0..=1.0,
-                    }]
-                    .into_iter()
-                    .collect(),
-                    ..Default::default()
-                }),
-                rasterization_state: Some(RasterizationState::default()),
-                depth_stencil_state: Some(DepthStencilState {
-                    depth: Some(DepthState::simple()),
-                    ..Default::default()
-                }),
-                multisample_state: Some(MultisampleState::default()),
-                color_blend_state: Some(ColorBlendState::with_attachment_states(
-                    subpass.num_color_attachments(),
-                    ColorBlendAttachmentState::default(),
-                )),
-                subpass: Some(subpass.into()),
-                ..GraphicsPipelineCreateInfo::layout(layout)
-            },
-        )
-        .unwrap()
-    };
-
-    (framebuffers, pipeline)
+    (
+        framebuffers,
+        fs.iter()
+            .map(|fs| create_pipeline(device, window_size, render_pass, vs, fs))
+            .collect(),
+    )
 }

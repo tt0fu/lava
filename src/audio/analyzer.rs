@@ -7,15 +7,6 @@ struct Consts {
     exp_bins: f32,
 }
 
-#[derive(Clone, Copy)]
-pub struct AnalysisInfo {
-    pub period: f32,
-    pub focus: f32,
-    pub center_sample: f32,
-    pub bass: f32,
-    pub chrono: f32,
-}
-
 struct BinData {
     window_start: usize,
     window_weights: Vec<f32>,
@@ -23,19 +14,28 @@ struct BinData {
     total_window: f32,
 }
 
+#[derive(Clone, Copy)]
+pub struct AnalysisData<const BIN_COUNT: usize> {
+    pub dft: [Vec2; BIN_COUNT],
+    pub period: f32,
+    pub focus: f32,
+    pub center_sample: f32,
+    pub bass: f32,
+    pub chrono: f32,
+}
+
 pub struct Analyzer<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32> {
     consts: Consts,
 
     buffer: CircularBuffer<f32, BUFFER_SIZE>,
-    gain: f32,
-    delta: u64,
+    dft_lut: [BinData; BIN_COUNT],
 
-    bin_data: [BinData; BIN_COUNT],
-    dft: Option<[Vec2; BIN_COUNT]>,
+    gain: f32,
+    since_last_analysis: u64,
 
     focus: f32,
     chrono: u64,
-    analysis_info: Option<AnalysisInfo>,
+    analysis_data: Option<AnalysisData<BIN_COUNT>>,
 }
 
 impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
@@ -59,7 +59,7 @@ impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
     }
 
     pub fn new() -> Self {
-        let mut bin_data = [(); BIN_COUNT].map(|_| BinData {
+        let mut dft_lut = [(); BIN_COUNT].map(|_| BinData {
             window_start: 0,
             window_weights: Vec::new(),
             complex_exponentials: Vec::new(),
@@ -101,7 +101,7 @@ impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
                 complex_exponentials.push(Vec2::new(phase.cos(), phase.sin()));
             }
 
-            bin_data[bin] = BinData {
+            dft_lut[bin] = BinData {
                 window_start,
                 window_weights,
                 complex_exponentials,
@@ -115,13 +115,12 @@ impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
                 exp_bins,
             },
             buffer: CircularBuffer::new(0.0),
+            dft_lut,
             gain: 1.0,
-            delta: 0,
-            bin_data,
-            dft: None,
+            since_last_analysis: 0,
             focus: 0.5,
             chrono: 0,
-            analysis_info: None,
+            analysis_data: None,
         }
     }
 
@@ -136,30 +135,44 @@ impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
     pub fn push(&mut self, new_sample: &f32) {
         self.gain += 0.00001;
         let volume = (new_sample * self.gain).abs();
-        if volume > 0.9 {
-            self.gain /= volume / 0.9;
+        if volume > 1.0 {
+            self.gain /= volume / 1.0;
         }
         if (new_sample * self.gain).abs() > 1.0 {
             self.gain /= new_sample.abs();
         }
         self.buffer.push(&(new_sample * self.gain));
-        self.delta += 1;
+        self.since_last_analysis += 1;
 
-        self.dft = None;
-        self.analysis_info = None;
+        self.analysis_data = None;
     }
 
     pub fn get_buffer(&self) -> CircularBuffer<f32, BUFFER_SIZE> {
         self.buffer.clone()
     }
 
-    pub fn get_ft(&mut self) -> [Vec2; BIN_COUNT] {
-        match &self.dft {
-            Some(dft) => dft.clone(),
+    fn get_bass_eq(&self, bin: f32) -> f32 {
+        let frequency = self.get_frequency(bin);
+        (1.0 - frequency / 200.0).max(0.0)
+    }
+
+    pub fn get_analysis_data(&mut self) -> AnalysisData<BIN_COUNT> {
+        match &self.analysis_data {
+            Some(info) => info.clone(),
             None => {
                 let mut dft = [Vec2::new(0.0, 0.0); BIN_COUNT];
+                
+                let mut mx = 0.0;
+                let mut max_bin = 1;
+                let mut cur;
+                let mut prev = 0.0;
+                let mut prevprev = 0.0;
+
+                let mut bass_total = self.get_bass_eq(0.0);
+                let mut bass_sum = bass_total * prev;
+                
                 for bin in 0..BIN_COUNT {
-                    let bin_data = &self.bin_data[bin];
+                    let bin_data = &self.dft_lut[bin];
                     let mut amplitude = Vec2::new(0.0, 0.0);
 
                     for i in 0..bin_data.window_weights.len() {
@@ -168,53 +181,27 @@ impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
                         amplitude += bin_data.complex_exponentials[i] * mult;
                     }
                     dft[bin] = amplitude / bin_data.total_window;
-                }
-                self.dft = Some(dft);
-                dft
-            }
-        }
-    }
-
-    fn get_bass_eq(&self, bin: f32) -> f32 {
-        let frequency = self.get_frequency(bin);
-        (1.0 - frequency / 200.0).max(0.0)
-    }
-
-    pub fn get_analysis_info(&mut self) -> AnalysisInfo {
-        match &self.analysis_info {
-            Some(info) => info.clone(),
-            None => {
-                let dft = self.get_ft();
-                let mut mx = 0.0;
-                let mut max_bin = 1;
-                let mut prev = dft[0].length();
-                let mut cur = dft[1].length();
-                let mut next = dft[2].length();
-
-                let mut bass_total = self.get_bass_eq(0.0);
-                let mut bass_sum = bass_total * prev;
-
-                for bin in 1..(BIN_COUNT - 3) {
+                    cur = dft[bin].length();
+                    
                     let bass_eq = self.get_bass_eq(bin as f32);
                     bass_sum += bass_eq * cur;
                     bass_total += bass_eq;
 
-                    if (cur >= prev)
-                        && (cur >= next)
-                        && (cur * (1.0 - (bin as f32) / (BIN_COUNT as f32)) > mx)
+                    if (prev >= cur)
+                        && (prev >= prevprev)
+                        && (prev * (1.0 - (bin as f32) / (BIN_COUNT as f32)) > mx)
                     {
-                        mx = cur;
-                        max_bin = bin;
+                        mx = prev;
+                        max_bin = bin - 1;
                     }
 
+                    prevprev = prev;
                     prev = cur;
-                    cur = next;
-                    next = dft[bin + 3].length();
                 }
 
                 let bass = (bass_sum / bass_total * 10.0).clamp(0.0, 1.0);
-                self.chrono += ((self.delta as f32) * bass) as u64;
-                self.delta = 0;
+                self.chrono += ((self.since_last_analysis as f32) * bass) as u64;
+                self.since_last_analysis = 0;
 
                 let frequency = self.get_frequency(max_bin as f32);
                 let period = SAMPLE_RATE as f32 / frequency;
@@ -223,7 +210,8 @@ impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
                 let center_sample =
                     (angle + (BUFFER_SIZE as f32 * self.focus / period).ceil()) * period;
 
-                let ans = AnalysisInfo {
+                let ans = AnalysisData {
+                    dft,
                     period,
                     focus: self.focus,
                     center_sample,
@@ -231,7 +219,7 @@ impl<const BUFFER_SIZE: usize, const BIN_COUNT: usize, const SAMPLE_RATE: u32>
                     chrono: (self.chrono as f32) / (SAMPLE_RATE as f32),
                 };
 
-                self.analysis_info = Some(ans);
+                self.analysis_data = Some(ans);
                 ans
             }
         }
