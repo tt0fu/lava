@@ -26,6 +26,5 @@ float fbm(vec2 p, float time) {
 }
 
 float pattern(vec2 p, float time) {
-    //return fbm(p, time);
     return fbm(p + fbm(p + fbm(p, time), time), time);
 }

@@ -1,9 +1,10 @@
 #ifndef CONSTS
 #define CONSTS
 
-const uint SAMPLE_COUNT = 4096u;
-const uint BIN_COUNT = 512u;
-const float SAMPLE_RATE = 48000.0;
+const uint SAMPLE_COUNT = 8192u; // must be equal to the value in config.rs
+const uint BIN_COUNT = 256u; // must be equal to the value in config.rs
+const float SAMPLE_RATE = 48000.0; // must be equal to the value in config.rs
+
 const float SAMPLE_COUNT_F = float(SAMPLE_COUNT);
 const float BIN_COUNT_F = float(BIN_COUNT);
 const float LOWEST_FREQUENCY = SAMPLE_RATE / SAMPLE_COUNT_F;

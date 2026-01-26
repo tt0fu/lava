@@ -44,8 +44,10 @@
           alsa-utils
           pulseaudio
           pipewire
+          jack2
 
           shaderc
+          glsl_analyzer
           spirv-tools
           vulkan-loader
           vulkan-tools
@@ -98,9 +100,10 @@
 
             alsa-lib
             shaderc
+            jack2
           ];
           env = with pkgs; {
-            PKG_CONFIG_PATH = "${alsa-lib.dev}/lib/pkgconfig";
+            PKG_CONFIG_PATH = "${alsa-lib.dev}/lib/pkgconfig:${jack2.dev}/lib/pkgconfig";
             SHADERC_LIB_DIR = lib.makeLibraryPath [ shaderc ];
           };
           postFixup = ''

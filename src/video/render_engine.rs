@@ -72,7 +72,7 @@ impl RenderEngine {
             .unwrap();
 
         println!(
-            "Using device: {} (type: {:?})",
+            "Using video device: {} (type: {:?})",
             physical_device.properties().device_name,
             physical_device.properties().device_type,
         );

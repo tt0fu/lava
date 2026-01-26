@@ -1,11 +1,12 @@
 use super::{
     super::audio::{Analyzer, Stream},
-    Panel, PanelVariant, RenderEngine,
-    shaders::{spectrogram, vs, waveform},
+    BIN_COUNT, SAMPLE_COUNT, PANELS, Panel,
+    RenderEngine, SAMPLE_RATE, WINDOW_SIZE, shaders,
+    shaders::{Bass, Dft, Samples, Stabilization},
     window_size_dependent_setup,
 };
-use glam::{Vec2, f32::Mat3, vec2};
-use std::{f32, sync::Arc};
+use glam::vec2;
+use std::{array, f32, sync::Arc};
 use vulkano::{
     Validated, VulkanError,
     buffer::{BufferContents, allocator::SubbufferAllocator},
@@ -26,6 +27,14 @@ use vulkano::{
 use winit::platform::wayland::WindowAttributesExtWayland;
 use winit::{event_loop::ActiveEventLoop, window::Window, window::WindowAttributes};
 
+#[derive(Clone)]
+pub struct GlobalWrites {
+    pub samples: WriteDescriptorSet,
+    pub stabilization: WriteDescriptorSet,
+    pub dft: WriteDescriptorSet,
+    pub bass: WriteDescriptorSet,
+}
+
 pub struct RenderContext {
     pub window: Arc<Window>,
     pub swapchain: Arc<Swapchain>,
@@ -37,8 +46,8 @@ pub struct RenderContext {
     pub pipelines: Vec<Arc<GraphicsPipeline>>,
     pub recreate_swapchain: bool,
     pub previous_frame_end: Option<Box<dyn GpuFuture>>,
-    pub stream: Stream<4096, 2>,
-    pub analyzer: Analyzer<4096, 512, 48000>,
+    pub stream: Stream,
+    pub analyzer: Analyzer,
 }
 
 impl RenderContext {
@@ -60,8 +69,7 @@ impl RenderContext {
                         .with_title("lava visualizer")
                         .with_decorations(false)
                         .with_resizable(false)
-                        // .with_inner_size(winit::dpi::LogicalSize::new(1080, 1920)),
-                        .with_inner_size(winit::dpi::LogicalSize::new(1920, 1080)),
+                        .with_inner_size(WINDOW_SIZE),
                 )
                 .unwrap(),
         );
@@ -121,58 +129,9 @@ impl RenderContext {
         )
         .unwrap();
 
-        let panels = vec![
-            Panel {
-                variant: PanelVariant::WAVEFORM,
-                scale: vec2(1.0, 0.5),
-                angle: 0.0,
-                translation: vec2(0.0, 0.5),
-            },
-            Panel {
-                variant: PanelVariant::WAVEFORM,
-                scale: vec2(1.0, -0.5),
-                angle: 0.0,
-                translation: vec2(0.0, -0.5),
-            },
-            Panel {
-                variant: PanelVariant::SPECTROGRAM,
-                scale: vec2(1.0, -0.5),
-                angle: 0.0,
-                translation: vec2(0.0, 0.5),
-            },
-            Panel {
-                variant: PanelVariant::SPECTROGRAM,
-                scale: vec2(1.0, 0.5),
-                angle: 0.0,
-                translation: vec2(0.0, -0.5),
-            },
-            // Panel {
-            //     variant: PanelVariant::WAVEFORM,
-            //     scale: vec2(1920.0 / 1080.0, -0.5 * 1080.0 / 1920.0),
-            //     angle: f32::consts::FRAC_PI_2,
-            //     translation: vec2(0.5 * 1080.0 / 1920.0, 0.0),
-            // },
-            // Panel {
-            //     variant: PanelVariant::WAVEFORM,
-            //     scale: vec2(1920.0 / 1080.0, 0.5 * 1080.0 / 1920.0),
-            //     angle: f32::consts::FRAC_PI_2,
-            //     translation: vec2(-0.5 * 1080.0 / 1920.0, 0.0),
-            // },
-            // Panel {
-            //     variant: PanelVariant::SPECTROGRAM,
-            //     scale: vec2(1.0, -0.5),
-            //     angle: 0.0,
-            //     translation: vec2(0.0, 0.5),
-            // },
-            // Panel {
-            //     variant: PanelVariant::SPECTROGRAM,
-            //     scale: vec2(1.0, 0.5),
-            //     angle: 0.0,
-            //     translation: vec2(0.0, -0.5),
-            // },
-        ];
+        let panels = Vec::from(PANELS);
 
-        let vs = vs::load(render_engine.device.clone())
+        let vs = shaders::load_vertex(render_engine.device.clone())
             .unwrap()
             .entry_point("main")
             .unwrap();
@@ -204,8 +163,8 @@ impl RenderContext {
             pipelines,
             recreate_swapchain: false,
             previous_frame_end,
-            stream: Stream::new(48000, 2048),
-            analyzer: Analyzer::new(),
+            stream: Stream::new(SAMPLE_RATE, 2048, 2048),
+            analyzer: Analyzer::new(SAMPLE_COUNT, BIN_COUNT, SAMPLE_RATE),
         }
     }
 
@@ -295,100 +254,67 @@ impl RenderContext {
             .bind_index_buffer(render_engine.mesh.index_buffer.clone())
             .unwrap();
 
-        let to_screen = Mat3::from_scale(Vec2::new(
-            window_size.height as f32 / window_size.width as f32,
-            1.0,
-        ));
-        let to_normalized = Mat3::from_scale(Vec2::new(
-            window_size.width as f32 / window_size.height as f32,
-            1.0,
-        ));
-        let new_samples = self.stream.get_samples();
-        let mono = new_samples
-            .iter()
-            .map(|s| (s[0] + s[1]) / 2.0)
-            .collect::<Vec<f32>>();
-        for sample in &mono {
-            self.analyzer.push(sample);
-        }
+        self.analyzer.update(&mut self.stream);
+
+        let screen_scale = vec2(window_size.width as f32, window_size.height as f32);
+        let analysis_data = self.analyzer.analyze();
         let samples_buffer = self.analyzer.get_buffer();
-        let analysis_data = self.analyzer.get_analysis_data();
+
+        let samples_start = (samples_buffer.start() as u32).into();
+        let samples_data = array::from_fn(|i| samples_buffer.data()[i].into());
+
+        let period = analysis_data.period.into();
+        let focus = analysis_data.focus.into();
+        let center_sample = analysis_data.center_sample.into();
+
+        let dft = array::from_fn(|i| {
+            let bin = analysis_data.dft[i];
+            [bin.x, bin.y].into()
+        });
+
+        let bass = analysis_data.bass.into();
+        let chrono = analysis_data.chrono.into();
+
+        let global_writes = GlobalWrites {
+            samples: Self::create_write_descriptor_set(
+                &render_engine.uniform_buffer_allocator,
+                2,
+                Samples {
+                    samples_start,
+                    samples_data,
+                },
+            ),
+            stabilization: Self::create_write_descriptor_set(
+                &render_engine.uniform_buffer_allocator,
+                3,
+                Stabilization {
+                    period,
+                    focus,
+                    center_sample,
+                },
+            ),
+            dft: Self::create_write_descriptor_set(
+                &render_engine.uniform_buffer_allocator,
+                4,
+                Dft { dft },
+            ),
+            bass: Self::create_write_descriptor_set(
+                &render_engine.uniform_buffer_allocator,
+                5,
+                Bass { bass, chrono },
+            ),
+        };
 
         for i in (0..(self.panels.len())).rev() {
             let panel = &self.panels[i];
 
             let layout = self.pipelines[i].layout().set_layouts()[0].clone();
 
-            let transform_write = {
-                let transform = to_screen
-                    * Mat3::from_scale_angle_translation(
-                        panel.scale,
-                        panel.angle,
-                        panel.translation,
-                    )
-                    * to_normalized;
-                Self::create_write_descriptor_set(
-                    &render_engine.uniform_buffer_allocator,
-                    0,
-                    vs::Transform {
-                        transform: [
-                            transform.x_axis.to_array().into(),
-                            transform.y_axis.to_array().into(),
-                            transform.z_axis.to_array().into(),
-                        ],
-                    },
-                )
-            };
-
-            let writes = match panel.variant {
-                PanelVariant::WAVEFORM => vec![
-                    transform_write,
-                    Self::create_write_descriptor_set(
-                        &render_engine.uniform_buffer_allocator,
-                        1,
-                        waveform::ScaleX {
-                            scale_x: ((window_size.width as f32 / window_size.height as f32)
-                                * (panel.scale.x.abs() / panel.scale.y.abs()))
-                            .into(),
-                        },
-                    ),
-                    Self::create_write_descriptor_set(
-                        &render_engine.uniform_buffer_allocator,
-                        2,
-                        waveform::Samples {
-                            samples_start: (samples_buffer.start() as u32).into(),
-                            samples_data: samples_buffer.data().map(|x| x.into()),
-                        },
-                    ),
-                    Self::create_write_descriptor_set(
-                        &render_engine.uniform_buffer_allocator,
-                        3,
-                        waveform::Stabilization {
-                            period: analysis_data.period.into(),
-                            focus: analysis_data.focus.into(),
-                            center_sample: analysis_data.center_sample.into(),
-                        },
-                    ),
-                    Self::create_write_descriptor_set(
-                        &render_engine.uniform_buffer_allocator,
-                        5,
-                        waveform::Bass {
-                            bass: analysis_data.bass.into(),
-                            chrono: analysis_data.chrono.into(),
-                        },
-                    ),
-                ],
-                PanelVariant::SPECTROGRAM => vec![
-                    transform_write,
-                    Self::create_write_descriptor_set(
-                        &render_engine.uniform_buffer_allocator,
-                        4,
-                        spectrogram::Dft {
-                            dft: analysis_data.dft.map(|bin| [bin.x, bin.y].into()),
-                        },
-                    ),
-                ],
-            };
+            let writes = panel.get_write_descriptor_sets(
+                &render_engine.uniform_buffer_allocator,
+                screen_scale,
+                global_writes.clone(),
+            );
 
             let descriptor_set = DescriptorSet::new(
                 render_engine.descriptor_set_allocator.clone(),

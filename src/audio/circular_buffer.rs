@@ -1,25 +1,27 @@
 #[derive(Clone)]
-pub struct CircularBuffer<T, const SIZE: usize> {
+pub struct CircularBuffer<T> {
     start: usize,
     size: usize,
-    data: [T; SIZE],
+    data: Vec<T>,
 }
 
-impl<T: Copy, const SIZE: usize> CircularBuffer<T, SIZE> {
-    pub fn new(fill: T) -> Self {
+impl<T: Copy> CircularBuffer<T> {
+    pub fn new(max_size: usize, fill: T) -> Self {
         Self {
             start: 0,
             size: 0,
-            data: [fill; SIZE],
+            data: vec![fill; max_size],
         }
     }
 
     pub fn push(&mut self, value: &T) {
-        while self.size >= SIZE {
-            self.start = (self.start + 1) % SIZE;
+        let len = self.data.len();
+
+        while self.size >= len {
+            self.start = (self.start + 1) % len;
             self.size -= 1;
         }
-        self.data[(self.start + self.size) % SIZE] = value.clone();
+        self.data[(self.start + self.size) % len] = value.clone();
         self.size += 1;
     }
 
@@ -28,18 +30,16 @@ impl<T: Copy, const SIZE: usize> CircularBuffer<T, SIZE> {
             None
         } else {
             let value = self.data[self.start].clone();
-            self.start = (self.start + 1) % SIZE;
+            self.start = (self.start + 1) % self.data.len();
             self.size -= 1;
             Some(value)
         }
     }
 
-    pub fn data(&self) -> [T; SIZE] {
-        self.data
+    pub fn data(&self) -> &Vec<T> {
+        &self.data
     }
-}
 
-impl<T, const SIZE: usize> CircularBuffer<T, SIZE> {
     pub fn size(&self) -> usize {
         self.size
     }
@@ -49,10 +49,10 @@ impl<T, const SIZE: usize> CircularBuffer<T, SIZE> {
     }
 }
 
-impl<T, const SIZE: usize> std::ops::Index<usize> for CircularBuffer<T, SIZE> {
+impl<T> std::ops::Index<usize> for CircularBuffer<T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.data[(self.start + index) % SIZE]
+        &self.data[(self.start + index) % self.data.len()]
     }
 }

@@ -1,7 +1,7 @@
 #ifndef STABILIZATION
 #define STABILIZATION
 
-#include "../consts.glsl"
+#include "../../../consts.glsl"
 
 layout(set = 0, binding = 3) uniform Stabilization {
     float period;

@@ -59,12 +59,14 @@ vec3 hueshift(vec3 lsrgb, float shift) {
 }
 
 vec3 lsrgb_srgb(vec3 lsrgb) {
+    lsrgb = clamp(lsrgb, 0.0, 1.0);
     vec3 xlo = 12.92 * lsrgb;
     vec3 xhi = 1.055 * pow(lsrgb, vec3(0.4166666666666667)) - 0.055;
     return mix(xlo, xhi, step(vec3(0.0031308), lsrgb));
 }
 
 vec3 srgb_lsrgb(vec3 srgb) {
+    srgb = clamp(srgb, 0.0, 1.0);
     vec3 xlo = srgb / 12.92;
     vec3 xhi = pow((srgb + 0.055) / 1.055, vec3(2.4));
     return mix(xlo, xhi, step(vec3(0.04045), srgb));

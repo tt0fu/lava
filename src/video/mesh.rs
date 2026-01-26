@@ -1,6 +1,6 @@
 use super::{
     Position, Uv,
-    model::{INDICES, POSITIONS, UVS},
+    INDICES, POSITIONS, UVS,
 };
 use std::sync::Arc;
 use vulkano::{
