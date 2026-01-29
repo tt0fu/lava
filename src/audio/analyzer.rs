@@ -51,7 +51,7 @@ impl Analyzer {
         if x < -1.0 || x > 1.0 {
             0.0
         } else {
-            const A: f32 = 2.0;
+            const A: f32 = 10.0;
             (A * (1.0 - x * x).max(0.0).sqrt()).exp() * (-A).exp()
         }
     }
