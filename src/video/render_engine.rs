@@ -1,5 +1,5 @@
 use super::Mesh;
-use std::{fs::File, io::BufReader, sync::Arc};
+use std::{io::Cursor, sync::Arc};
 use vulkano::{
     DeviceSize, VulkanLibrary,
     buffer::{
@@ -144,8 +144,7 @@ impl RenderEngine {
         .unwrap();
 
         let texture = {
-            let decoder =
-                png::Decoder::new(BufReader::new(File::open("src/assets/image.png").unwrap()));
+            let decoder = png::Decoder::new(Cursor::new(include_bytes!("../assets/image.png")));
             let mut reader = decoder.read_info().unwrap();
             let info = reader.info();
             let extent = [info.width, info.height, 1];
