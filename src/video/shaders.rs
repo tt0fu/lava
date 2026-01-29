@@ -19,6 +19,10 @@ vulkano_shaders::shader! {
         gray_venue_gridnode: {
             ty: "fragment",
             path: "src/video/shaders/gray_venue_gridnode.glsl",
+        },
+        image: {
+            ty: "fragment",
+            path: "src/video/shaders/image.glsl",
         }
     }
 }
@@ -75,6 +79,20 @@ impl GrayVenueGridnodeParameters {
 }
 
 impl Default for GrayVenueGridnodeParameters {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
+impl ImageParameters {
+    pub const DEFAULT: Self = Self {
+        alpha_cutoff: 0.5,
+        scale_min: 0.5,
+        scale_max: 1.0,
+    };
+}
+
+impl Default for ImageParameters {
     fn default() -> Self {
         Self::DEFAULT
     }

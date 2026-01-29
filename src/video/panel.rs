@@ -1,11 +1,13 @@
 use super::{
-    GlobalWrites, shaders,
+    super::config::{BIN_COUNT, SAMPLE_COUNT, SAMPLE_RATE},
+    GlobalWrites, PanelTransform, shaders,
     shaders::{
-        AspectRatio, GrayVenueGridnodeParameters, RainbowParameters, SpectrogramParameters, Transform, WaveformParameters,
+        AspectRatio, GrayVenueGridnodeParameters, ImageParameters, RainbowParameters,
+        SpectrogramParameters, Transform, WaveformParameters,
     },
 };
 
-use glam::{Mat3, Vec2, vec2};
+use glam::Vec2;
 use std::sync::Arc;
 use vulkano::{
     buffer::{BufferContents, allocator::SubbufferAllocator},
@@ -15,104 +17,40 @@ use vulkano::{
 };
 
 #[derive(Clone, Copy)]
-pub enum PanelVariant {
+pub enum PanelMaterial {
     Waveform(WaveformParameters),
     Spectrogram(SpectrogramParameters),
     Rainbow(RainbowParameters),
+    Image(ImageParameters),
     GrayVenueGridnode(GrayVenueGridnodeParameters),
 }
 
 #[derive(Clone, Copy)]
-pub struct PanelTransform {
-    pub scale: Vec2,
-    pub angle: f32,
-    pub translation: Vec2,
-}
-
-const fn div(a: Vec2, b: Vec2) -> Vec2 {
-    vec2(a.x / b.x, a.y / b.y)
-}
-
-const fn add(a: Vec2, b: Vec2) -> Vec2 {
-    vec2(a.x + b.x, a.y + b.y)
-}
-
-const fn sub(a: Vec2, b: Vec2) -> Vec2 {
-    vec2(a.x - b.x, a.y - b.y)
-}
-
-impl PanelTransform {
-    pub const DEFAULT: Self = Self {
-        scale: vec2(1.0, 1.0),
-        angle: 0.0,
-        translation: vec2(0.0, 0.0),
-    };
-
-    pub const fn from_upper_left_corner(
-        scale_pixels: Vec2,
-        upper_left_corner: Vec2,
-        screen_pixels: Vec2,
-        angle: f32,
-    ) -> Self {
-        let scale = div(scale_pixels, screen_pixels);
-        let screen_center = div(screen_pixels, vec2(2.0, 2.0));
-        let panel_center = div(scale_pixels, vec2(2.0, 2.0));
-        let translation = div(
-            sub(add(upper_left_corner, panel_center), screen_center),
-            screen_center,
-        );
-
-        Self {
-            scale,
-            angle,
-            translation,
-        }
-    }
-
-    pub const fn mirror_x(&self) -> Self {
-        Self {
-            scale: vec2(-self.scale.x, self.scale.y),
-            ..*self
-        }
-    }
-
-    pub fn get_matrix(&self, screen_scale: Vec2) -> Mat3 {
-        let to_screen = Mat3::from_scale(1.0 / screen_scale);
-        let to_normalized = Mat3::from_scale(screen_scale);
-
-        let scale = Mat3::from_scale(self.scale);
-        let angle = to_screen * Mat3::from_angle(self.angle) * to_normalized;
-        let translation = Mat3::from_translation(self.translation);
-
-        translation * angle * scale
-    }
-
-    pub fn get_aspect_ratio(&self) -> f32 {
-        self.scale.x.abs() / self.scale.y.abs()
-    }
-}
-
-impl Default for PanelTransform {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}
-
-#[derive(Clone, Copy)]
 pub struct Panel {
-    pub variant: PanelVariant,
+    pub material: PanelMaterial,
     pub transform: PanelTransform,
 }
 
 impl Panel {
     pub fn get_shader_entry_point(&self, device: &Arc<Device>) -> EntryPoint {
         let device_clone = device.clone();
-        match self.variant {
-            PanelVariant::Waveform(_) => shaders::load_waveform(device_clone),
-            PanelVariant::Spectrogram(_) => shaders::load_spectrogram(device_clone),
-            PanelVariant::Rainbow(_) => shaders::load_rainbow(device_clone),
-            PanelVariant::GrayVenueGridnode(_) => shaders::load_gray_venue_gridnode(device_clone),
+        match self.material {
+            PanelMaterial::Waveform(_) => shaders::load_waveform(device_clone),
+            PanelMaterial::Spectrogram(_) => shaders::load_spectrogram(device_clone),
+            PanelMaterial::Rainbow(_) => shaders::load_rainbow(device_clone),
+            PanelMaterial::Image(_) => shaders::load_image(device_clone),
+            PanelMaterial::GrayVenueGridnode(_) => shaders::load_gray_venue_gridnode(device_clone),
         }
+        .unwrap()
+        .specialize(
+            [
+                (0, (SAMPLE_COUNT as u32).into()),
+                (1, (BIN_COUNT as u32).into()),
+                (2, (SAMPLE_RATE as u32).into()),
+            ]
+            .into_iter()
+            .collect(),
+        )
         .unwrap()
         .entry_point("main")
         .unwrap()
@@ -131,11 +69,11 @@ impl Panel {
     pub fn get_write_descriptor_sets(
         &self,
         uniform_buffer_allocator: &SubbufferAllocator,
-        screen_scale: Vec2,
+        screen_size: Vec2,
         global_writes: GlobalWrites,
     ) -> Vec<WriteDescriptorSet> {
         let transform_write = {
-            let transform = self.transform.get_matrix(screen_scale);
+            let transform = self.transform.get_matrix(screen_size);
             Self::create_write_descriptor_set(
                 &uniform_buffer_allocator,
                 0,
@@ -153,14 +91,13 @@ impl Panel {
             &uniform_buffer_allocator,
             1,
             AspectRatio {
-                aspect_ratio: ((screen_scale.x / screen_scale.y)
-                    * self.transform.get_aspect_ratio())
-                .into(),
+                aspect_ratio: ((screen_size.x / screen_size.y) * self.transform.get_aspect_ratio())
+                    .into(),
             },
         );
 
-        match self.variant {
-            PanelVariant::Waveform(parameters) => vec![
+        match self.material {
+            PanelMaterial::Waveform(parameters) => vec![
                 transform_write,
                 aspect_ratio_write,
                 global_writes.samples,
@@ -168,18 +105,25 @@ impl Panel {
                 global_writes.bass,
                 Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
             ],
-            PanelVariant::Spectrogram(parameters) => vec![
+            PanelMaterial::Spectrogram(parameters) => vec![
                 transform_write,
                 global_writes.dft,
                 Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
             ],
-            PanelVariant::Rainbow(parameters) => vec![
+            PanelMaterial::Rainbow(parameters) => vec![
                 transform_write,
                 aspect_ratio_write,
                 global_writes.bass,
                 Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
             ],
-            PanelVariant::GrayVenueGridnode(parameters) => vec![
+            PanelMaterial::Image(parameters) => vec![
+                transform_write,
+                global_writes.bass,
+                global_writes.image_sampler,
+                global_writes.image_view,
+                Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+            ],
+            PanelMaterial::GrayVenueGridnode(parameters) => vec![
                 transform_write,
                 global_writes.dft,
                 global_writes.bass,

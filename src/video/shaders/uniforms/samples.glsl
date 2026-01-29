@@ -3,9 +3,9 @@
 
 #include "../lib/consts.glsl"
 
-layout(set = 0, binding = 2) uniform Samples {
+layout(set = 0, binding = 2) buffer Samples {
     uint samples_start;
-    float samples_data[SAMPLE_COUNT];
+    float samples_data[];
 };
 
 #endif

@@ -3,8 +3,8 @@
 
 #include "../lib/consts.glsl"
 
-layout(set = 0, binding = 4) uniform Dft {
-    vec2 dft[BIN_COUNT];
+layout(set = 0, binding = 4) buffer Dft {
+    vec2 dft[];
 };
 
 float smooth_magnitude(float bin) {

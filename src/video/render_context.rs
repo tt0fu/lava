@@ -1,7 +1,6 @@
 use super::{
     super::audio::{Analyzer, Stream},
-    BIN_COUNT, SAMPLE_COUNT, PANELS, Panel,
-    RenderEngine, SAMPLE_RATE, WINDOW_SIZE, shaders,
+    BIN_COUNT, PANELS, Panel, RenderEngine, SAMPLE_COUNT, SAMPLE_RATE, WINDOW_SIZE, shaders,
     shaders::{Bass, Dft, Samples, Stabilization},
     window_size_dependent_setup,
 };
@@ -9,7 +8,7 @@ use glam::vec2;
 use std::{array, f32, sync::Arc};
 use vulkano::{
     Validated, VulkanError,
-    buffer::{BufferContents, allocator::SubbufferAllocator},
+    buffer::{BufferContents, Subbuffer, allocator::SubbufferAllocator},
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo},
     descriptor_set::{DescriptorSet, WriteDescriptorSet},
     format::Format,
@@ -33,6 +32,8 @@ pub struct GlobalWrites {
     pub stabilization: WriteDescriptorSet,
     pub dft: WriteDescriptorSet,
     pub bass: WriteDescriptorSet,
+    pub image_sampler: WriteDescriptorSet,
+    pub image_view: WriteDescriptorSet,
 }
 
 pub struct RenderContext {
@@ -169,11 +170,11 @@ impl RenderContext {
     }
 
     fn create_write_descriptor_set<T: BufferContents>(
-        uniform_buffer_allocator: &SubbufferAllocator,
+        buffer_allocator: &SubbufferAllocator,
         binding: u32,
         content: T,
     ) -> WriteDescriptorSet {
-        let buffer = uniform_buffer_allocator.allocate_sized().unwrap();
+        let buffer = buffer_allocator.allocate_sized().unwrap();
         *buffer.write().unwrap() = content;
         WriteDescriptorSet::buffer(binding, buffer)
     }
@@ -261,13 +262,13 @@ impl RenderContext {
         let samples_buffer = self.analyzer.get_buffer();
 
         let samples_start = (samples_buffer.start() as u32).into();
-        let samples_data = array::from_fn(|i| samples_buffer.data()[i].into());
+        let samples_data: [_; SAMPLE_COUNT] = array::from_fn(|i| samples_buffer.data()[i].into());
 
         let period = analysis_data.period.into();
         let focus = analysis_data.focus.into();
         let center_sample = analysis_data.center_sample.into();
 
-        let dft = array::from_fn(|i| {
+        let dft: [_; BIN_COUNT] = array::from_fn(|i| {
             let bin = analysis_data.dft[i];
             [bin.x, bin.y].into()
         });
@@ -276,14 +277,25 @@ impl RenderContext {
         let chrono = analysis_data.chrono.into();
 
         let global_writes = GlobalWrites {
-            samples: Self::create_write_descriptor_set(
-                &render_engine.uniform_buffer_allocator,
-                2,
-                Samples {
-                    samples_start,
-                    samples_data,
-                },
-            ),
+            samples: {
+                let buffer: Subbuffer<Samples> = render_engine
+                    .storage_buffer_allocator
+                    .allocate_unsized(SAMPLE_COUNT as u64)
+                    .unwrap();
+                let mut guard = buffer.write().unwrap();
+                guard.samples_start = samples_start;
+                guard.samples_data.copy_from_slice(&samples_data);
+                drop(guard);
+                WriteDescriptorSet::buffer(2, buffer)
+            },
+            // Self::create_write_descriptor_set(
+            //     &render_engine.storage_buffer_allocator,
+            //     2,
+            //     Samples {
+            //         samples_start,
+            //         samples_data,
+            //     },
+            // ),
             stabilization: Self::create_write_descriptor_set(
                 &render_engine.uniform_buffer_allocator,
                 3,
@@ -293,16 +305,23 @@ impl RenderContext {
                     center_sample,
                 },
             ),
-            dft: Self::create_write_descriptor_set(
-                &render_engine.uniform_buffer_allocator,
-                4,
-                Dft { dft },
-            ),
+            dft: {
+                let buffer: Subbuffer<Dft> = render_engine
+                    .storage_buffer_allocator
+                    .allocate_unsized(BIN_COUNT as u64)
+                    .unwrap();
+                let mut guard = buffer.write().unwrap();
+                guard.dft.copy_from_slice(&dft);
+                drop(guard);
+                WriteDescriptorSet::buffer(4, buffer)
+            },
             bass: Self::create_write_descriptor_set(
                 &render_engine.uniform_buffer_allocator,
                 5,
                 Bass { bass, chrono },
             ),
+            image_sampler: WriteDescriptorSet::sampler(6, render_engine.sampler.clone()),
+            image_view: WriteDescriptorSet::image_view(7, render_engine.texture.clone()),
         };
 
         for i in (0..(self.panels.len())).rev() {
