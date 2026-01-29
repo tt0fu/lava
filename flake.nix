@@ -86,41 +86,7 @@
 
             shellHook = ''export SHELL="${pkgs.bashInteractive}/bin/bash"; '';
           };
-        defaultPackage = pkgs.rustPlatform.buildRustPackage {
-          pname = "lava";
-          version = "0.0.1";
-          doCheck = false;
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-          };
-          src = ./.;
-          nativeBuildInputs = with pkgs; [
-            pkg-config
-            makeWrapper
-
-            alsa-lib
-            shaderc
-            jack2
-          ];
-          env = with pkgs; {
-            PKG_CONFIG_PATH = "${alsa-lib.dev}/lib/pkgconfig:${jack2.dev}/lib/pkgconfig";
-            SHADERC_LIB_DIR = lib.makeLibraryPath [ shaderc ];
-          };
-          postFixup = ''
-            wrapProgram $out/bin/lava \
-              --set LD_LIBRARY_PATH ${
-                pkgs.lib.makeLibraryPath (
-                  with pkgs;
-                  [
-                    vulkan-loader
-                    vulkan-tools
-                    libxkbcommon
-                    wayland
-                  ]
-                )
-              }
-          '';
-        };
+        defaultPackage = pkgs.callPackage ./package.nix { };
       }
     );
 }
