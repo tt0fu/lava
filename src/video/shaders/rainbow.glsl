@@ -1,6 +1,6 @@
 #version 450
 
-#include "../../consts.glsl"
+#include "lib/consts.glsl"
 
 layout(location = 0) in vec2 UV;
 layout(location = 0) out vec4 COLOR;

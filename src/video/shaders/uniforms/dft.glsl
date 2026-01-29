@@ -1,7 +1,7 @@
 #ifndef DFT
 #define DFT
 
-#include "../../../consts.glsl"
+#include "../lib/consts.glsl"
 
 layout(set = 0, binding = 4) uniform Dft {
     vec2 dft[BIN_COUNT];

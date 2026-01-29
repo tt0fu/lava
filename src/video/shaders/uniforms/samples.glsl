@@ -1,7 +1,7 @@
 #ifndef SAMPLES
 #define SAMPLES
 
-#include "../../../consts.glsl"
+#include "../lib/consts.glsl"
 
 layout(set = 0, binding = 2) uniform Samples {
     uint samples_start;
