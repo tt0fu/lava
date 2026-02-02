@@ -21,10 +21,8 @@
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs { inherit system overlays; };
 
-        mingwW64 = pkgs.pkgsCross.mingwW64;
-
-        packages = with pkgs; [
-          (rust-bin.stable.latest.default.override {
+        rustToolchain = (
+          pkgs.rust-bin.nightly.latest.default.override {
             extensions = [
               "clippy"
               "rust-analyzer"
@@ -33,9 +31,12 @@
             ];
             targets = [
               "x86_64-unknown-linux-gnu"
-              "x86_64-pc-windows-gnu"
             ];
-          })
+          }
+        );
+
+        packages = with pkgs; [
+          rustToolchain
 
           pkg-config
           makeWrapper
@@ -66,27 +67,24 @@
         ];
       in
       {
-        devShells.default =
-          with pkgs;
-          mkShell {
+        devShells = {
+          default = pkgs.mkShell {
             buildInputs = packages;
 
-            nativeBuildInputs = [
-              mingwW64.stdenv.cc
-              mingwW64.stdenv.cc.bintools
-            ];
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath packages;
+            PKG_CONFIG_PATH = "${pkgs.alsa-lib.dev}/lib/pkgconfig:${pkgs.jack2.dev}/lib/pkgconfig";
+            SHADERC_LIB_DIR = pkgs.lib.makeLibraryPath [ pkgs.shaderc ];
+            VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
 
-            LD_LIBRARY_PATH = lib.makeLibraryPath packages;
-            PKG_CONFIG_PATH = "${alsa-lib.dev}/lib/pkgconfig";
-            SHADERC_LIB_DIR = lib.makeLibraryPath [ shaderc ];
-            VK_LAYER_PATH = "${vulkan-validation-layers}/share/vulkan/explicit_layer.d";
-
-            CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER = "${mingwW64.stdenv.cc}/bin/x86_64-w64-mingw32-gcc";
-            CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS = "-L native=${mingwW64.windows.pthreads}/lib";
-
-            shellHook = ''export SHELL="${pkgs.bashInteractive}/bin/bash"; '';
+            shellHook = ''
+              export SHELL="${pkgs.bashInteractive}/bin/bash"
+            '';
           };
-        defaultPackage = pkgs.callPackage ./package.nix { };
+        };
+        packages = {
+          default = pkgs.callPackage ./package.nix { };
+          portable = pkgs.callPackage ./package.nix { portable = true; };
+        };
       }
     );
 }
