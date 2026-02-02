@@ -66,7 +66,7 @@ impl PanelTransform {
         });
 
         let translation = Mat3::from_translation(match self.position {
-            PanelPosition::Screen(position) => position - vec2(0.5, 0.5),
+            PanelPosition::Screen(position) => position * 2.0 - vec2(1.0, 1.0),
             PanelPosition::Pixels(position) => (position * 2.0) / screen_size - vec2(1.0, 1.0),
         });
 
