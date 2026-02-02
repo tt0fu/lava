@@ -83,9 +83,9 @@ float wave_distance(float sample_index, float sample_height) {
 }
 
 void main() {
-    float sample_index = UV.x * float(SAMPLE_COUNT);
-    float dist = wave_distance(sample_index + center_sample - float(SAMPLE_COUNT) * focus, 1.0 - UV.y);
-    float val = fade(dist * float(SAMPLE_COUNT) / line_width);
-    vec3 col = lch_srgb(vec3(lightness, chroma, fract(pattern(UV * vec2(aspect_ratio, 1.0) * scale, chrono * pattern_speed) * 2.0) + chrono * scroll_speed));
-    COLOR = vec4(val * col, 1.0);
+    float sample_index = UV.x * SAMPLE_COUNT_F;
+    float dist = wave_distance(sample_index + center_sample - SAMPLE_COUNT_F * focus, 1.0 - UV.y);
+    float val = fade(dist * SAMPLE_COUNT_F / line_width);
+    vec3 col = get_color(pattern, UV, aspect_ratio, chrono);
+    COLOR = vec4(col, val);
 }
