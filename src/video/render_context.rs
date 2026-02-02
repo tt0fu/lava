@@ -288,14 +288,6 @@ impl RenderContext {
                 drop(guard);
                 WriteDescriptorSet::buffer(2, buffer)
             },
-            // Self::create_write_descriptor_set(
-            //     &render_engine.storage_buffer_allocator,
-            //     2,
-            //     Samples {
-            //         samples_start,
-            //         samples_data,
-            //     },
-            // ),
             stabilization: Self::create_write_descriptor_set(
                 &render_engine.uniform_buffer_allocator,
                 3,

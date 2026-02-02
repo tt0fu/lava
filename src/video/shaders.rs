@@ -1,3 +1,5 @@
+use vulkano::padded::Padded;
+
 vulkano_shaders::shader! {
     shaders: {
         vertex: {
@@ -8,9 +10,13 @@ vulkano_shaders::shader! {
             ty: "fragment",
             path: "src/video/shaders/waveform.glsl",
         },
-        rainbow: {
+        pattern: {
             ty: "fragment",
-            path: "src/video/shaders/rainbow.glsl",
+            path: "src/video/shaders/pattern.glsl",
+        },
+        masked_pattern: {
+            ty: "fragment",
+            path: "src/video/shaders/masked_pattern.glsl",
         },
         spectrogram: {
             ty: "fragment",
@@ -27,15 +33,24 @@ vulkano_shaders::shader! {
     }
 }
 
-impl WaveformParameters {
+impl Pattern {
     pub const DEFAULT: Self = Self {
-        line_width: 50.0,
-        gain: 0.9,
+        color: [1.0, 1.0, 1.0],
+        use_rainbow: 1,
         lightness: 0.8,
         chroma: 0.1,
         scale: 1.0,
+        repeats: 2.0,
         pattern_speed: 1.0,
         scroll_speed: 2.0,
+    };
+}
+
+impl WaveformParameters {
+    pub const DEFAULT: Self = Self {
+        pattern: Padded(Pattern::DEFAULT),
+        line_width: 50.0,
+        gain: 0.9,
     };
 }
 
@@ -45,30 +60,17 @@ impl Default for WaveformParameters {
     }
 }
 
-impl RainbowParameters {
+impl PatternParameters {
     pub const DEFAULT: Self = Self {
-        lightness: 0.8,
-        chroma: 0.1,
-        scale: 1.0,
-        pattern_speed: 1.0,
-        scroll_speed: 2.0,
+        pattern: Pattern::DEFAULT,
     };
 }
 
-impl Default for RainbowParameters {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}
-
 impl SpectrogramParameters {
-    pub const DEFAULT: Self = Self { gain: 1.5 };
-}
-
-impl Default for SpectrogramParameters {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
+    pub const DEFAULT: Self = Self {
+        pattern: Padded(Pattern::DEFAULT),
+        gain: 1.5,
+    };
 }
 
 impl GrayVenueGridnodeParameters {
@@ -78,22 +80,17 @@ impl GrayVenueGridnodeParameters {
     };
 }
 
-impl Default for GrayVenueGridnodeParameters {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}
-
 impl ImageParameters {
     pub const DEFAULT: Self = Self {
-        alpha_cutoff: 0.5,
         scale_min: 0.5,
         scale_max: 1.0,
     };
 }
 
-impl Default for ImageParameters {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
+impl MaskedPatternParameters {
+    pub const DEFAULT: Self = Self {
+        pattern: Padded(Pattern::DEFAULT),
+        scale_min: 0.5,
+        scale_max: 1.0,
+    };
 }

@@ -2,8 +2,8 @@ use super::{
     super::config::{BIN_COUNT, SAMPLE_COUNT, SAMPLE_RATE},
     GlobalWrites, PanelTransform, shaders,
     shaders::{
-        AspectRatio, GrayVenueGridnodeParameters, ImageParameters, RainbowParameters,
-        SpectrogramParameters, Transform, WaveformParameters,
+        AspectRatio, GrayVenueGridnodeParameters, ImageParameters, MaskedPatternParameters,
+        PatternParameters, SpectrogramParameters, Transform, WaveformParameters,
     },
 };
 
@@ -20,7 +20,8 @@ use vulkano::{
 pub enum PanelMaterial {
     Waveform(WaveformParameters),
     Spectrogram(SpectrogramParameters),
-    Rainbow(RainbowParameters),
+    Pattern(PatternParameters),
+    MaskedPattern(MaskedPatternParameters),
     Image(ImageParameters),
     GrayVenueGridnode(GrayVenueGridnodeParameters),
 }
@@ -37,7 +38,8 @@ impl Panel {
         match self.material {
             PanelMaterial::Waveform(_) => shaders::load_waveform(device_clone),
             PanelMaterial::Spectrogram(_) => shaders::load_spectrogram(device_clone),
-            PanelMaterial::Rainbow(_) => shaders::load_rainbow(device_clone),
+            PanelMaterial::Pattern(_) => shaders::load_pattern(device_clone),
+            PanelMaterial::MaskedPattern(_) => shaders::load_masked_pattern(device_clone),
             PanelMaterial::Image(_) => shaders::load_image(device_clone),
             PanelMaterial::GrayVenueGridnode(_) => shaders::load_gray_venue_gridnode(device_clone),
         }
@@ -107,13 +109,23 @@ impl Panel {
             ],
             PanelMaterial::Spectrogram(parameters) => vec![
                 transform_write,
+                aspect_ratio_write,
                 global_writes.dft,
+                global_writes.bass,
                 Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
             ],
-            PanelMaterial::Rainbow(parameters) => vec![
+            PanelMaterial::Pattern(parameters) => vec![
                 transform_write,
                 aspect_ratio_write,
                 global_writes.bass,
+                Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+            ],
+            PanelMaterial::MaskedPattern(parameters) => vec![
+                transform_write,
+                aspect_ratio_write,
+                global_writes.bass,
+                global_writes.image_sampler,
+                global_writes.image_view,
                 Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
             ],
             PanelMaterial::Image(parameters) => vec![

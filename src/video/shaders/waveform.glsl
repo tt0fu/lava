@@ -1,6 +1,7 @@
 #version 450
 
 #include "lib/consts.glsl"
+#include "structs/pattern.glsl"
 
 layout(location = 0) in vec2 UV;
 layout(location = 0) out vec4 COLOR;
@@ -11,13 +12,9 @@ layout(location = 0) out vec4 COLOR;
 #include "uniforms/bass.glsl"
 
 layout(set = 0, binding = 10) uniform WaveformParameters {
+    Pattern pattern;
     float line_width;
     float gain;
-    float lightness;
-    float chroma;
-    float scale;
-    float pattern_speed;
-    float scroll_speed;
 };
 
 #include "lib/oklab.glsl"

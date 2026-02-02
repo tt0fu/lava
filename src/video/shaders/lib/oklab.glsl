@@ -1,3 +1,6 @@
+#ifndef OKLAB
+#define OKLAB
+
 const mat3 fwdA = mat3(
         vec3(1.0, 1.0, 1.0),
         vec3(0.3963377774, -0.1055613458, -0.0894841775),
@@ -79,3 +82,5 @@ vec3 lch_srgb(vec3 lch) {
 vec3 srgb_lch(vec3 srgb) {
     return lsrgb_lch(srgb_lsrgb(srgb));
 }
+
+#endif

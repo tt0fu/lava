@@ -8,15 +8,12 @@ layout(location = 0) out vec4 COLOR;
 
 #include "uniforms/aspect_ratio.glsl"
 #include "uniforms/bass.glsl"
-#include "uniforms/dft.glsl"
 
-layout(set = 0, binding = 10) uniform SpectrogramParameters {
+layout(set = 0, binding = 10) uniform PatternParameters {
     Pattern pattern;
-    float gain;
 };
 
 void main() {
-    float val = step(1.0 - UV.y, smooth_magnitude(UV.x * (BIN_COUNT - 1)) * gain);
     vec3 col = get_color(pattern, UV, aspect_ratio, chrono);
-    COLOR = vec4(col, val);
+    COLOR = vec4(col, 1.0);
 }

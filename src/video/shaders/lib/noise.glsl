@@ -1,3 +1,6 @@
+#ifndef NOISE
+#define NOISE
+
 float rand(vec2 n) {
     return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 12.345);
 }
@@ -25,6 +28,8 @@ float fbm(vec2 p, float time) {
     return f / 0.875;
 }
 
-float pattern(vec2 p, float time) {
+float fbm3(vec2 p, float time) {
     return fbm(p + fbm(p + fbm(p, time), time), time);
 }
+
+#endif

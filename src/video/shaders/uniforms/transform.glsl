@@ -1,5 +1,5 @@
-#ifndef SCALE_X
-#define SCALE_X
+#ifndef TRANSFORM
+#define TRANSFORM
 
 #include "../lib/consts.glsl"
 
