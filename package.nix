@@ -14,7 +14,7 @@
 }:
 rustPlatform.buildRustPackage rec {
   pname = "lava";
-  version = "0.0.1";
+  version = "0.0.2";
   doCheck = false;
   cargoLock = {
     lockFile = ./Cargo.lock;
