@@ -9,7 +9,7 @@ use vulkano::{
         GraphicsPipeline, PipelineLayout, PipelineShaderStageCreateInfo,
         graphics::{
             GraphicsPipelineCreateInfo,
-            color_blend::{ColorBlendAttachmentState, ColorBlendState},
+            color_blend::{AttachmentBlend, ColorBlendAttachmentState, ColorBlendState},
             depth_stencil::{DepthState, DepthStencilState},
             input_assembly::InputAssemblyState,
             multisample::MultisampleState,
@@ -66,13 +66,16 @@ fn create_pipeline(
             }),
             rasterization_state: Some(RasterizationState::default()),
             depth_stencil_state: Some(DepthStencilState {
-                depth: Some(DepthState::simple()),
+                depth: Some(DepthState::default()),
                 ..Default::default()
             }),
             multisample_state: Some(MultisampleState::default()),
             color_blend_state: Some(ColorBlendState::with_attachment_states(
                 subpass.num_color_attachments(),
-                ColorBlendAttachmentState::default(),
+                ColorBlendAttachmentState {
+                    blend: Some(AttachmentBlend::alpha()),
+                    ..Default::default()
+                },
             )),
             subpass: Some(subpass.into()),
             ..GraphicsPipelineCreateInfo::layout(layout)

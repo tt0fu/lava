@@ -324,7 +324,7 @@ impl RenderContext {
             image_view: WriteDescriptorSet::image_view(7, render_engine.texture.clone()),
         };
 
-        for i in (0..(self.panels.len())).rev() {
+        for i in 0..(self.panels.len()) {
             let panel = &self.panels[i];
 
             let layout = self.pipelines[i].layout().set_layouts()[0].clone();
