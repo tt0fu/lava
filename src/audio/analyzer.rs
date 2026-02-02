@@ -147,10 +147,7 @@ impl Analyzer {
         self.gain += 0.00001;
         let volume = (new_sample * self.gain).abs();
         if volume > 1.0 {
-            self.gain /= volume / 1.0;
-        }
-        if (new_sample * self.gain).abs() > 1.0 {
-            self.gain /= new_sample.abs();
+            self.gain /= volume;
         }
         self.buffer.push(&(new_sample * self.gain));
         self.since_last_analysis += 1;
