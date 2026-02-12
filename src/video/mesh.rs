@@ -1,7 +1,4 @@
-use super::{
-    Position, Uv,
-    INDICES, POSITIONS, UVS,
-};
+use super::{INDICES, POSITIONS, Position, UVS, Uv};
 use std::sync::Arc;
 use vulkano::{
     buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},

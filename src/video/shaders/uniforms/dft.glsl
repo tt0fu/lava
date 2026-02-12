@@ -16,11 +16,11 @@ float smooth_magnitude(float bin) {
 }
 
 float frequency_to_bin(float frequency) {
-	return clamp(EXP_BINS * log2(frequency / LOWEST_FREQUENCY), 0.0, BIN_COUNT_F);
+    return clamp(EXP_BINS * log2(frequency / LOWEST_FREQUENCY), 0.0, BIN_COUNT_F);
 }
 
 float bin_to_frequency(float bin) {
-	return LOWEST_FREQUENCY * exp2(bin / EXP_BINS);
+    return LOWEST_FREQUENCY * exp2(bin / EXP_BINS);
 }
 
 #endif

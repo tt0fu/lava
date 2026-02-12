@@ -74,7 +74,7 @@ impl PanelTransform {
 
         translation * angle * scale
     }
-    
+
     pub fn get_aspect_ratio(&self) -> f32 {
         let scale = match self.scale {
             PanelScale::Screen(scale) => scale,
@@ -92,7 +92,7 @@ impl PanelTransform {
             ..*self
         }
     }
-    
+
     pub const fn flip_y(&self) -> Self {
         Self {
             scale: (match self.scale {
@@ -102,7 +102,7 @@ impl PanelTransform {
             ..*self
         }
     }
-    
+
     pub const fn rotate_cw(&self) -> Self {
         Self {
             scale: (match self.scale {
@@ -113,7 +113,7 @@ impl PanelTransform {
             ..*self
         }
     }
-    
+
     pub const fn rotate_ccw(&self) -> Self {
         Self {
             scale: (match self.scale {
@@ -124,7 +124,6 @@ impl PanelTransform {
             ..*self
         }
     }
-
 }
 
 impl Default for PanelTransform {

@@ -192,7 +192,7 @@ impl Analyzer {
 
                 for bin in 0..self.bin_count {
                     let bin_f = bin as f32;
-                    
+
                     let bin_data = &self.dft_lut[bin];
                     let mut amplitude = Vec2::new(0.0, 0.0);
 
@@ -228,8 +228,7 @@ impl Analyzer {
                 let period = sample_rate_f / frequency;
                 let phase = dft[max_bin];
                 let angle = (phase.y.atan2(phase.x)) / (PI * 2.0) - 0.25;
-                let center_sample =
-                    (angle + (buffer_size_f * self.focus / period).ceil()) * period;
+                let center_sample = (angle + (buffer_size_f * self.focus / period).ceil()) * period;
 
                 let ans = AnalysisData {
                     dft,
