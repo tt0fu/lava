@@ -7,12 +7,10 @@ edition = "2024"
 dead_code = "allow"
 
 [dependencies]
-anyhow = "1.0.100"
 cpal = {version = "0.16.0", features = ["jack"]}
 
 glam = "0.30.9"
 png = "0.18.0"
-rand = "0.9.2"
 
 vulkano = "0.35.2"
 vulkano-macros = "0.35.0"
