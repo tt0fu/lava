@@ -1,14 +1,17 @@
 use super::video::{
     Panel,
-    PanelMaterial::{GrayVenueGridnode, Image, MaskedPattern, Pattern as PatternMaterial, Spectrogram, Waveform},
+    PanelMaterial::{
+        GrayVenueGridnode, Image, MaskedPattern, Pattern as PatternMaterial, Spectrogram, Waveform,
+    },
     PanelPosition, PanelScale, PanelTransform,
     shaders::{
-        GrayVenueGridnodeParameters, ImageParameters, MaskedPatternParameters,
+        GrayVenueGridnodeParameters, ImageParameters, MaskedPatternParameters, Pattern,
         PatternParameters, SpectrogramParameters, WaveformParameters,
     },
 };
 use glam::{Vec2, vec2};
 use std::f32::consts::FRAC_PI_2;
+use vulkano::padded::Padded;
 use winit::dpi::LogicalSize;
 
 pub const WINDOW_SIZE: LogicalSize<i32> = LogicalSize::new(1920, 1080);
@@ -84,7 +87,13 @@ const GREY_VENUE_GRIDNODE: &[Panel] = &[
         .rotate_ccw(),
     },
     Panel {
-        material: Spectrogram(SpectrogramParameters::DEFAULT),
+        material: Spectrogram(SpectrogramParameters {
+            pattern: Padded(Pattern {
+                use_rainbow: 0,
+                ..Pattern::DEFAULT
+            }),
+            ..SpectrogramParameters::DEFAULT
+        }),
         transform: PanelTransform::from_upper_left_corner_pixels(
             vec2(210.0, 400.0),
             vec2(1710.0, 0.0),
@@ -93,7 +102,13 @@ const GREY_VENUE_GRIDNODE: &[Panel] = &[
         .rotate_ccw(),
     },
     Panel {
-        material: Spectrogram(SpectrogramParameters::DEFAULT),
+        material: Spectrogram(SpectrogramParameters {
+            pattern: Padded(Pattern {
+                use_rainbow: 0,
+                ..Pattern::DEFAULT
+            }),
+            ..SpectrogramParameters::DEFAULT
+        }),
         transform: PanelTransform::from_upper_left_corner_pixels(
             vec2(210.0, 400.0),
             vec2(1710.0, 400.0),
@@ -117,4 +132,4 @@ const GREY_VENUE_GRIDNODE: &[Panel] = &[
     },
 ];
 
-pub const PANELS: &[Panel] = DOUBLE_WAVEFORM;
+pub const PANELS: &[Panel] = GREY_VENUE_GRIDNODE;
