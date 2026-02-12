@@ -10,9 +10,7 @@ use super::{
 use glam::Vec2;
 use std::sync::Arc;
 use vulkano::{
-    buffer::{BufferContents, allocator::SubbufferAllocator},
-    descriptor_set::WriteDescriptorSet,
-    device::Device,
+    buffer::allocator::SubbufferAllocator, descriptor_set::WriteDescriptorSet, device::Device,
     shader::EntryPoint,
 };
 
