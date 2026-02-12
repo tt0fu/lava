@@ -14,7 +14,7 @@
 }:
 rustPlatform.buildRustPackage rec {
   pname = "lava";
-  version = "0.0.2";
+  version = (fromTOML (builtins.readFile ./Cargo.toml)).package.version;
   doCheck = false;
   cargoLock = {
     lockFile = ./Cargo.lock;
