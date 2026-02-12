@@ -22,7 +22,7 @@
         pkgs = import nixpkgs { inherit system overlays; };
 
         rustToolchain = (
-          pkgs.rust-bin.nightly.latest.default.override {
+          pkgs.rust-bin.stable.latest.default.override {
             extensions = [
               "clippy"
               "rust-analyzer"
@@ -60,10 +60,10 @@
           libxkbcommon
           wayland
           wayland.dev
-          xorg.libX11
-          xorg.libXcursor
-          xorg.libXi
-          xorg.libXrandr
+          libx11
+          libxcursor
+          libxi
+          libxrandr
         ];
       in
       {
