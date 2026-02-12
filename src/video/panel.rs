@@ -1,6 +1,6 @@
 use super::{
     super::config::{BIN_COUNT, SAMPLE_COUNT, SAMPLE_RATE},
-    GlobalWrites, PanelTransform, shaders,
+    GlobalWrites, PanelTransform, create_write_descriptor_set, shaders,
     shaders::{
         AspectRatio, GrayVenueGridnodeParameters, ImageParameters, MaskedPatternParameters,
         PatternParameters, SpectrogramParameters, Transform, WaveformParameters,
@@ -58,16 +58,6 @@ impl Panel {
         .unwrap()
     }
 
-    fn create_write_descriptor_set<T: BufferContents>(
-        uniform_buffer_allocator: &SubbufferAllocator,
-        binding: u32,
-        content: T,
-    ) -> WriteDescriptorSet {
-        let buffer = uniform_buffer_allocator.allocate_sized().unwrap();
-        *buffer.write().unwrap() = content;
-        WriteDescriptorSet::buffer(binding, buffer)
-    }
-
     pub fn get_write_descriptor_sets(
         &self,
         uniform_buffer_allocator: &SubbufferAllocator,
@@ -76,7 +66,7 @@ impl Panel {
     ) -> Vec<WriteDescriptorSet> {
         let transform_write = {
             let transform = self.transform.get_matrix(screen_size);
-            Self::create_write_descriptor_set(
+            create_write_descriptor_set(
                 &uniform_buffer_allocator,
                 0,
                 Transform {
@@ -89,7 +79,7 @@ impl Panel {
             )
         };
 
-        let aspect_ratio_write = Self::create_write_descriptor_set(
+        let aspect_ratio_write = create_write_descriptor_set(
             &uniform_buffer_allocator,
             1,
             AspectRatio {
@@ -105,20 +95,20 @@ impl Panel {
                 global_writes.samples,
                 global_writes.stabilization,
                 global_writes.bass,
-                Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+                create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
             ],
             PanelMaterial::Spectrogram(parameters) => vec![
                 transform_write,
                 aspect_ratio_write,
                 global_writes.dft,
                 global_writes.bass,
-                Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+                create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
             ],
             PanelMaterial::Pattern(parameters) => vec![
                 transform_write,
                 aspect_ratio_write,
                 global_writes.bass,
-                Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+                create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
             ],
             PanelMaterial::MaskedPattern(parameters) => vec![
                 transform_write,
@@ -126,20 +116,20 @@ impl Panel {
                 global_writes.bass,
                 global_writes.image_sampler,
                 global_writes.image_view,
-                Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+                create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
             ],
             PanelMaterial::Image(parameters) => vec![
                 transform_write,
                 global_writes.bass,
                 global_writes.image_sampler,
                 global_writes.image_view,
-                Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+                create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
             ],
             PanelMaterial::GrayVenueGridnode(parameters) => vec![
                 transform_write,
                 global_writes.dft,
                 global_writes.bass,
-                Self::create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+                create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
             ],
         }
     }
