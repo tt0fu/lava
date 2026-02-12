@@ -208,8 +208,8 @@ impl Analyzer {
                     bass_sum += bass_eq * cur;
                     bass_total += bass_eq;
 
-                    if (prev >= cur)
-                        && (prev >= prevprev)
+                    if (prev > cur)
+                        && (prev > prevprev)
                         && (prev * (1.0 - (bin_f) / (bin_count_f)) > mx)
                     {
                         mx = prev;
