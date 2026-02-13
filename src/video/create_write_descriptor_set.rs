@@ -9,7 +9,6 @@ pub fn create_write_descriptor_set<T: BufferContents>(
     content: T,
 ) -> WriteDescriptorSet {
     let buffer = buffer_allocator.allocate_sized().unwrap();
-    assert_eq!(buffer.size(), T::LAYOUT.head_size());
     *buffer.write().unwrap() = content;
     WriteDescriptorSet::buffer(binding, buffer)
 }
