@@ -22,7 +22,7 @@ impl Stream {
 
         let config = StreamConfig {
             channels: 1,
-            sample_rate: SampleRate(sample_rate),
+            sample_rate: sample_rate,
             buffer_size: Fixed(fetch_buffer_size),
         };
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(store_buffer_size, 0.0)));
