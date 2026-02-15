@@ -13,6 +13,7 @@ impl AudioEngine {
         Self {
             stream: Stream::new(
                 config.sample_rate,
+                config.channels,
                 config.fetch_buffer_size,
                 config.store_buffer_size,
             ),

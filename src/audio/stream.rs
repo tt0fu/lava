@@ -13,17 +13,25 @@ pub struct Stream {
 }
 
 impl Stream {
-    pub fn new(sample_rate: u32, fetch_buffer_size: u32, store_buffer_size: usize) -> Self {
+    pub fn new(
+        sample_rate: u32,
+        channels: u16,
+        fetch_buffer_size: u32,
+        store_buffer_size: usize,
+    ) -> Self {
         let device = default_host()
             .default_input_device()
             .expect("No audio input devices available");
 
-        println!("Using audio device: {}", device.description().unwrap().name());
+        println!(
+            "Using audio device: {}",
+            device.description().unwrap().name()
+        );
 
         let config = StreamConfig {
-            channels: 1,
+            channels,
             sample_rate,
-            buffer_size: Fixed(fetch_buffer_size),
+            buffer_size: Fixed(fetch_buffer_size * channels as u32),
         };
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(store_buffer_size, 0.0)));
         let buffer_clone = buffer.clone();
@@ -35,8 +43,8 @@ impl Stream {
                     let mut buf = buffer_clone
                         .lock()
                         .expect("Failed to lock audio buffer mutex");
-                    for frame in data {
-                        buf.push(&frame);
+                    for frame in data.chunks(channels as usize) {
+                        buf.push(&(frame.iter().sum::<f32>() / frame.len() as f32));
                     }
                 },
                 |err| eprintln!("Stream error: {}", err),

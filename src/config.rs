@@ -16,6 +16,7 @@ use winit::dpi::LogicalSize;
 
 #[derive(Clone)]
 pub struct Config {
+    pub channels: u16,
     pub fetch_buffer_size: u32,
     pub store_buffer_size: usize,
 
@@ -32,6 +33,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            channels: 1,
             fetch_buffer_size: 512,
             store_buffer_size: 2048,
             sample_count: 8192,
@@ -45,7 +47,7 @@ impl Default for Config {
                 }),
                 transform: PanelTransform::FULLSCREEN,
             }],
-            time_frames: false,
+            time_frames: true,
         }
     }
 }
