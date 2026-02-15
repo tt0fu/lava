@@ -36,7 +36,7 @@ impl FrameTimer {
     pub fn print_results(&self) {
         let (len, avg, min, max) = self.results();
         println!(
-            "{} frames: avg={:?} ({} fps), max={:?}, min={:?}",
+            "{} frames: avg={:?} ({} fps), min={:?}, max={:?}",
             len,
             avg,
             Duration::from_secs(1).div_duration_f64(avg),
