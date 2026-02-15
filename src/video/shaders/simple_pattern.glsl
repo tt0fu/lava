@@ -9,7 +9,7 @@ layout(location = 0) out vec4 COLOR;
 #include "uniforms/aspect_ratio.glsl"
 #include "uniforms/bass.glsl"
 
-layout(set = 0, binding = 10) uniform PatternParameters {
+layout(set = 0, binding = 10) uniform SimplePatternParameters {
     Pattern pattern;
 };
 

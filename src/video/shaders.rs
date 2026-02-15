@@ -10,9 +10,9 @@ vulkano_shaders::shader! {
             ty: "fragment",
             path: "src/video/shaders/waveform.glsl",
         },
-        pattern: {
+        simple_pattern: {
             ty: "fragment",
-            path: "src/video/shaders/pattern.glsl",
+            path: "src/video/shaders/simple_pattern.glsl",
         },
         masked_pattern: {
             ty: "fragment",
@@ -60,7 +60,7 @@ impl Default for WaveformParameters {
     }
 }
 
-impl PatternParameters {
+impl SimplePatternParameters {
     pub const DEFAULT: Self = Self {
         pattern: Pattern::DEFAULT,
     };

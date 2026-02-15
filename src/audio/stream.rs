@@ -2,7 +2,7 @@ use super::CircularBuffer;
 
 use cpal::{
     BufferSize::Fixed,
-    SampleRate, StreamConfig, default_host,
+    StreamConfig, default_host,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use std::sync::{Arc, Mutex};
@@ -18,11 +18,11 @@ impl Stream {
             .default_input_device()
             .expect("No audio input devices available");
 
-        println!("Using audio device: {}", device.name().unwrap());
+        println!("Using audio device: {}", device.description().unwrap().name());
 
         let config = StreamConfig {
             channels: 1,
-            sample_rate: sample_rate,
+            sample_rate,
             buffer_size: Fixed(fetch_buffer_size),
         };
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(store_buffer_size, 0.0)));

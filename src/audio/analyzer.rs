@@ -1,6 +1,7 @@
-use crate::audio::Stream;
-
-use super::CircularBuffer;
+use crate::{
+    audio::CircularBuffer,
+    video::shaders::{Bass, Stabilization},
+};
 use glam::Vec2;
 use std::f32::consts::PI;
 
@@ -18,13 +19,11 @@ struct BinData {
 }
 
 #[derive(Clone)]
-pub struct AnalysisData {
+pub struct AudioData {
+    pub samples: CircularBuffer<f32>,
     pub dft: Vec<Vec2>,
-    pub period: f32,
-    pub focus: f32,
-    pub center_sample: f32,
-    pub bass: f32,
-    pub chrono: f32,
+    pub stabilization: Stabilization,
+    pub bass: Bass,
 }
 
 pub struct Analyzer {
@@ -43,7 +42,7 @@ pub struct Analyzer {
 
     focus: f32,
     chrono: u64,
-    analysis_data: Option<AnalysisData>,
+    audio_data: Option<AudioData>,
 }
 
 impl Analyzer {
@@ -131,7 +130,7 @@ impl Analyzer {
             since_last_analysis: 0,
             focus: 0.5,
             chrono: 0,
-            analysis_data: None,
+            audio_data: None,
         }
     }
 
@@ -152,14 +151,7 @@ impl Analyzer {
         self.buffer.push(&(new_sample * self.gain));
         self.since_last_analysis += 1;
 
-        self.analysis_data = None;
-    }
-
-    pub fn update(&mut self, stream: &mut Stream) {
-        let new_samples = stream.get_samples();
-        for sample in &new_samples {
-            self.push(sample);
-        }
+        self.audio_data = None;
     }
 
     pub fn get_buffer(&self) -> &CircularBuffer<f32> {
@@ -171,8 +163,8 @@ impl Analyzer {
         (1.0 - frequency / 200.0).max(0.0)
     }
 
-    pub fn analyze(&mut self) -> AnalysisData {
-        match &self.analysis_data {
+    pub fn analyze(&mut self) -> AudioData {
+        match &self.audio_data {
             Some(info) => info.clone(),
             None => {
                 let buffer_size_f = self.buffer_size as f32;
@@ -230,16 +222,21 @@ impl Analyzer {
                 let angle = (phase.y.atan2(phase.x)) / (PI * 2.0) - 0.25;
                 let center_sample = (angle + (buffer_size_f * self.focus / period).ceil()) * period;
 
-                let ans = AnalysisData {
+                let ans = AudioData {
+                    samples: self.buffer.clone(),
                     dft,
-                    period,
-                    focus: self.focus,
-                    center_sample,
-                    bass,
-                    chrono: (self.chrono as f32) / sample_rate_f,
+                    stabilization: Stabilization {
+                        period,
+                        focus: self.focus,
+                        center_sample,
+                    },
+                    bass: Bass {
+                        bass,
+                        chrono: (self.chrono as f32) / sample_rate_f,
+                    },
                 };
 
-                self.analysis_data = Some(ans.clone());
+                self.audio_data = Some(ans.clone());
                 ans
             }
         }

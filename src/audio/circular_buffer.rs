@@ -1,8 +1,8 @@
 #[derive(Clone)]
 pub struct CircularBuffer<T> {
-    start: usize,
-    size: usize,
-    data: Vec<T>,
+    pub start: usize,
+    pub size: usize,
+    pub data: Vec<T>,
 }
 
 impl<T: Copy> CircularBuffer<T> {
@@ -34,18 +34,6 @@ impl<T: Copy> CircularBuffer<T> {
             self.size -= 1;
             Some(value)
         }
-    }
-
-    pub fn data(&self) -> &Vec<T> {
-        &self.data
-    }
-
-    pub fn size(&self) -> usize {
-        self.size
-    }
-
-    pub fn start(&self) -> usize {
-        self.start
     }
 }
 

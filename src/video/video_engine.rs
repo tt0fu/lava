@@ -1,33 +1,29 @@
-use super::Mesh;
-use std::{io::Cursor, sync::Arc};
+use crate::{
+    audio::AudioData,
+    config::Config,
+    video::{Mesh, RenderContext, Texture},
+};
+
+use std::sync::Arc;
 use vulkano::{
-    DeviceSize, VulkanLibrary,
+    VulkanLibrary,
     buffer::{
-        Buffer, BufferCreateInfo, BufferUsage,
+        BufferUsage,
         allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
     },
-    command_buffer::{
-        AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferToImageInfo,
-        PrimaryCommandBufferAbstract, allocator::StandardCommandBufferAllocator,
-    },
+    command_buffer::allocator::StandardCommandBufferAllocator,
     descriptor_set::allocator::StandardDescriptorSetAllocator,
     device::{
         Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags,
         physical::PhysicalDeviceType,
     },
-    format::Format,
-    image::{
-        Image, ImageCreateInfo, ImageType, ImageUsage,
-        sampler::{Filter, Sampler, SamplerAddressMode, SamplerCreateInfo},
-        view::ImageView,
-    },
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
-    memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
+    memory::allocator::{MemoryTypeFilter, StandardMemoryAllocator},
     swapchain::Surface,
 };
-use winit::event_loop::EventLoop;
+use winit::{dpi::PhysicalSize, event_loop::EventLoop, window::Window};
 
-pub struct RenderEngine {
+pub struct VideoEngine {
     pub instance: Arc<Instance>,
     pub device: Arc<Device>,
     pub queue: Arc<Queue>,
@@ -37,12 +33,13 @@ pub struct RenderEngine {
     pub uniform_buffer_allocator: SubbufferAllocator,
     pub storage_buffer_allocator: SubbufferAllocator,
     pub mesh: Mesh,
-    pub texture: Arc<ImageView>,
-    pub sampler: Arc<Sampler>,
+    pub texture: Texture,
+
+    pub context: Option<RenderContext>,
 }
 
-impl RenderEngine {
-    pub fn new(event_loop: &EventLoop<()>) -> Self {
+impl VideoEngine {
+    pub fn new(event_loop: &EventLoop) -> Self {
         let library = VulkanLibrary::new().unwrap();
         let required_extensions = Surface::required_extensions(event_loop).unwrap();
         let instance = Instance::new(
@@ -136,73 +133,12 @@ impl RenderEngine {
 
         let mesh = Mesh::new(&memory_allocator);
 
-        let mut uploads = AutoCommandBufferBuilder::primary(
-            command_buffer_allocator.clone(),
-            queue.queue_family_index(),
-            CommandBufferUsage::OneTimeSubmit,
-        )
-        .unwrap();
-
-        let texture = {
-            let decoder = png::Decoder::new(Cursor::new(include_bytes!("../assets/image.png")));
-            let mut reader = decoder.read_info().unwrap();
-            let info = reader.info();
-            let extent = [info.width, info.height, 1];
-
-            let upload_buffer = Buffer::new_slice(
-                memory_allocator.clone(),
-                BufferCreateInfo {
-                    usage: BufferUsage::TRANSFER_SRC,
-                    ..Default::default()
-                },
-                AllocationCreateInfo {
-                    memory_type_filter: MemoryTypeFilter::PREFER_HOST
-                        | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
-                    ..Default::default()
-                },
-                (info.width * info.height * 4) as DeviceSize,
-            )
-            .unwrap();
-
-            reader
-                .next_frame(&mut upload_buffer.write().unwrap())
-                .unwrap();
-
-            let image = Image::new(
-                memory_allocator.clone(),
-                ImageCreateInfo {
-                    image_type: ImageType::Dim2d,
-                    format: Format::R8G8B8A8_UNORM,
-                    extent,
-                    usage: ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
-                    ..Default::default()
-                },
-                AllocationCreateInfo::default(),
-            )
-            .unwrap();
-
-            uploads
-                .copy_buffer_to_image(CopyBufferToImageInfo::buffer_image(
-                    upload_buffer,
-                    image.clone(),
-                ))
-                .unwrap();
-
-            ImageView::new_default(image).unwrap()
-        };
-
-        let sampler = Sampler::new(
-            device.clone(),
-            SamplerCreateInfo {
-                mag_filter: Filter::Linear,
-                min_filter: Filter::Linear,
-                address_mode: [SamplerAddressMode::ClampToEdge; 3],
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
-        let _ = uploads.build().unwrap().execute(queue.clone()).unwrap();
+        let texture = Texture::new(
+            &device,
+            &queue,
+            &memory_allocator,
+            &command_buffer_allocator,
+        );
 
         Self {
             instance,
@@ -215,7 +151,37 @@ impl RenderEngine {
             storage_buffer_allocator,
             mesh,
             texture,
-            sampler,
+            context: None,
         }
+    }
+
+    pub fn init(&mut self, window: &Arc<Box<dyn Window>>, config: &Config) {
+        self.context = Some(RenderContext::new(
+            &self.instance,
+            &self.device,
+            &self.memory_allocator,
+            &window,
+            &config,
+        ));
+    }
+
+    pub fn resize(&mut self) {
+        self.context.as_mut().unwrap().recreate_swapchain = true;
+    }
+
+    pub fn redraw(&mut self, window_size: &PhysicalSize<u32>, audio_data: &AudioData) {
+        self.context.as_mut().unwrap().redraw(
+            &self.device,
+            &self.queue,
+            &self.memory_allocator,
+            &self.descriptor_set_allocator,
+            &self.command_buffer_allocator,
+            &self.uniform_buffer_allocator,
+            &self.storage_buffer_allocator,
+            &self.mesh,
+            &self.texture,
+            &window_size,
+            &audio_data,
+        );
     }
 }

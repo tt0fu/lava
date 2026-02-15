@@ -1,18 +1,27 @@
-use super::{
-    super::audio::{Analyzer, Stream},
-    BIN_COUNT, PANELS, Panel, RenderEngine, SAMPLE_COUNT, SAMPLE_RATE, WINDOW_SIZE, shaders,
-    shaders::{Bass, Dft, Samples, Stabilization},
-    window_size_dependent_setup,
+use crate::{
+    audio::analyzer::AudioData,
+    config::Config,
+    video::{
+        GlobalWrites, Mesh, Panel, Texture, shaders::load_vertex, window_size_dependent_setup,
+    },
 };
+
 use glam::vec2;
-use std::{array, f32, sync::Arc};
+use std::sync::Arc;
 use vulkano::{
     Validated, VulkanError,
-    buffer::{BufferContents, Subbuffer, allocator::SubbufferAllocator},
-    command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo},
-    descriptor_set::{DescriptorSet, WriteDescriptorSet},
+    buffer::allocator::SubbufferAllocator,
+    command_buffer::{
+        AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo,
+        allocator::StandardCommandBufferAllocator,
+    },
+    descriptor_set::{DescriptorSet, allocator::StandardDescriptorSetAllocator},
+    device::Device,
+    device::Queue,
     format::Format,
     image::ImageUsage,
+    instance::Instance,
+    memory::allocator::StandardMemoryAllocator,
     pipeline::{GraphicsPipeline, Pipeline, PipelineBindPoint},
     render_pass::{Framebuffer, RenderPass},
     shader::EntryPoint,
@@ -22,75 +31,43 @@ use vulkano::{
     sync::{self, GpuFuture},
 };
 
-#[cfg(target_os = "linux")]
-use winit::platform::wayland::WindowAttributesExtWayland;
-use winit::{event_loop::ActiveEventLoop, window::Window, window::WindowAttributes};
-
-#[derive(Clone)]
-pub struct GlobalWrites {
-    pub samples: WriteDescriptorSet,
-    pub stabilization: WriteDescriptorSet,
-    pub dft: WriteDescriptorSet,
-    pub bass: WriteDescriptorSet,
-    pub image_sampler: WriteDescriptorSet,
-    pub image_view: WriteDescriptorSet,
-}
+use winit::{dpi::PhysicalSize, window::Window};
 
 pub struct RenderContext {
-    pub window: Arc<Window>,
     pub swapchain: Arc<Swapchain>,
     pub render_pass: Arc<RenderPass>,
     pub framebuffers: Vec<Arc<Framebuffer>>,
-    pub vs: EntryPoint,
-    pub fs: Vec<EntryPoint>,
+    pub vertex_shader: EntryPoint,
+    pub fragment_shaders: Vec<EntryPoint>,
     pub panels: Vec<Panel>,
     pub pipelines: Vec<Arc<GraphicsPipeline>>,
     pub recreate_swapchain: bool,
     pub previous_frame_end: Option<Box<dyn GpuFuture>>,
-    pub stream: Stream,
-    pub analyzer: Analyzer,
 }
 
 impl RenderContext {
-    #[cfg(not(target_os = "linux"))]
-    fn spawn_window() -> WindowAttributes {
-        Window::default_attributes()
-    }
-
-    #[cfg(target_os = "linux")]
-    fn spawn_window() -> WindowAttributes {
-        Window::default_attributes().with_name("org.ttofu.lava", "lava window instance")
-    }
-
-    pub fn new(render_engine: &RenderEngine, event_loop: &ActiveEventLoop) -> Self {
-        let window = Arc::new(
-            event_loop
-                .create_window(
-                    Self::spawn_window()
-                        .with_title("lava visualizer")
-                        .with_decorations(false)
-                        .with_resizable(false)
-                        .with_inner_size(WINDOW_SIZE),
-                )
-                .unwrap(),
-        );
-        let surface = Surface::from_window(render_engine.instance.clone(), window.clone()).unwrap();
-        let window_size = window.inner_size();
+    pub fn new(
+        instance: &Arc<Instance>,
+        device: &Arc<Device>,
+        memory_allocator: &Arc<StandardMemoryAllocator>,
+        window: &Arc<Box<dyn Window>>,
+        config: &Config,
+    ) -> Self {
+        let surface = Surface::from_window(instance.clone(), window.clone()).unwrap();
+        let window_size = window.surface_size();
 
         let (swapchain, images) = {
-            let surface_capabilities = render_engine
-                .device
+            let surface_capabilities = device
                 .physical_device()
                 .surface_capabilities(&surface, Default::default())
                 .unwrap();
-            let (image_format, _) = render_engine
-                .device
+            let (image_format, _) = device
                 .physical_device()
                 .surface_formats(&surface, Default::default())
                 .unwrap()[0];
 
             Swapchain::new(
-                render_engine.device.clone(),
+                device.clone(),
                 surface,
                 SwapchainCreateInfo {
                     min_image_count: surface_capabilities.min_image_count.max(2),
@@ -108,7 +85,7 @@ impl RenderContext {
             .unwrap()
         };
 
-        let render_pass = vulkano::single_pass_renderpass!(render_engine.device.clone(),
+        let render_pass = vulkano::single_pass_renderpass!(device.clone(),
             attachments: {
                 color: {
                     format: swapchain.image_format(),
@@ -130,59 +107,56 @@ impl RenderContext {
         )
         .unwrap();
 
-        let panels = Vec::from(PANELS);
+        let panels = config.panels.clone();
 
-        let vs = shaders::load_vertex(render_engine.device.clone())
+        let vertex_shader = load_vertex(device.clone())
             .unwrap()
             .entry_point("main")
             .unwrap();
 
-        let fs = panels
+        let fragment_shaders = panels
             .iter()
-            .map(|p| p.get_shader_entry_point(&render_engine.device))
+            .map(|p| p.get_shader_entry_point(&device, &config))
             .collect();
 
         let (framebuffers, pipelines) = window_size_dependent_setup(
             window_size,
             &images,
             &render_pass,
-            &render_engine.memory_allocator,
-            &vs,
-            &fs,
+            &memory_allocator,
+            &vertex_shader,
+            &fragment_shaders,
         );
 
-        let previous_frame_end = Some(sync::now(render_engine.device.clone()).boxed());
+        let previous_frame_end = Some(sync::now(device.clone()).boxed());
 
         Self {
-            window,
             swapchain,
             render_pass,
             framebuffers,
-            vs,
-            fs,
+            vertex_shader,
+            fragment_shaders,
             panels,
             pipelines,
             recreate_swapchain: false,
             previous_frame_end,
-            stream: Stream::new(SAMPLE_RATE, 2048, 2048),
-            analyzer: Analyzer::new(SAMPLE_COUNT, BIN_COUNT, SAMPLE_RATE),
         }
     }
 
-    fn create_write_descriptor_set<T: BufferContents>(
-        buffer_allocator: &SubbufferAllocator,
-        binding: u32,
-        content: T,
-    ) -> WriteDescriptorSet {
-        let buffer = buffer_allocator.allocate_sized().unwrap();
-        assert_eq!(buffer.size(), T::LAYOUT.head_size());
-        *buffer.write().unwrap() = content;
-        WriteDescriptorSet::buffer(binding, buffer)
-    }
-
-    pub fn redraw(&mut self, render_engine: &RenderEngine) {
-        let window_size = self.window.inner_size();
-
+    pub fn redraw(
+        &mut self,
+        device: &Arc<Device>,
+        queue: &Arc<Queue>,
+        memory_allocator: &Arc<StandardMemoryAllocator>,
+        descriptor_set_allocator: &Arc<StandardDescriptorSetAllocator>,
+        command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
+        uniform_buffer_allocator: &SubbufferAllocator,
+        storage_buffer_allocator: &SubbufferAllocator,
+        mesh: &Mesh,
+        texture: &Texture,
+        window_size: &PhysicalSize<u32>,
+        audio_data: &AudioData,
+    ) {
         if window_size.width == 0 || window_size.height == 0 {
             return;
         }
@@ -193,19 +167,19 @@ impl RenderContext {
             let (new_swapchain, new_images) = self
                 .swapchain
                 .recreate(SwapchainCreateInfo {
-                    image_extent: window_size.into(),
+                    image_extent: window_size.clone().into(),
                     ..self.swapchain.create_info()
                 })
                 .expect("failed to recreate swapchain");
 
             self.swapchain = new_swapchain;
             (self.framebuffers, self.pipelines) = window_size_dependent_setup(
-                window_size,
+                window_size.clone(),
                 &new_images,
                 &self.render_pass,
-                &render_engine.memory_allocator,
-                &self.vs,
-                &self.fs,
+                &memory_allocator,
+                &self.vertex_shader,
+                &self.fragment_shaders,
             );
             self.recreate_swapchain = false;
         }
@@ -225,8 +199,8 @@ impl RenderContext {
         }
 
         let mut builder = AutoCommandBufferBuilder::primary(
-            render_engine.command_buffer_allocator.clone(),
-            render_engine.queue.queue_family_index(),
+            command_buffer_allocator.clone(),
+            queue.queue_family_index(),
             CommandBufferUsage::OneTimeSubmit,
         )
         .unwrap();
@@ -245,77 +219,17 @@ impl RenderContext {
                 Default::default(),
             )
             .unwrap()
-            .bind_vertex_buffers(
-                0,
-                (
-                    render_engine.mesh.vertex_buffer.clone(),
-                    render_engine.mesh.uvs_buffer.clone(),
-                ),
-            )
+            .bind_vertex_buffers(0, (mesh.vertex_buffer.clone(), mesh.uvs_buffer.clone()))
             .unwrap()
-            .bind_index_buffer(render_engine.mesh.index_buffer.clone())
+            .bind_index_buffer(mesh.index_buffer.clone())
             .unwrap();
 
-        self.analyzer.update(&mut self.stream);
-
-        let screen_scale = vec2(window_size.width as f32, window_size.height as f32);
-        let analysis_data = self.analyzer.analyze();
-        let samples_buffer = self.analyzer.get_buffer();
-
-        let samples_start = (samples_buffer.start() as u32).into();
-        let samples_data: [_; SAMPLE_COUNT] = array::from_fn(|i| samples_buffer.data()[i].into());
-
-        let period = analysis_data.period.into();
-        let focus = analysis_data.focus.into();
-        let center_sample = analysis_data.center_sample.into();
-
-        let dft: [_; BIN_COUNT] = array::from_fn(|i| {
-            let bin = analysis_data.dft[i];
-            [bin.x, bin.y].into()
-        });
-
-        let bass = analysis_data.bass.into();
-        let chrono = analysis_data.chrono.into();
-
-        let global_writes = GlobalWrites {
-            samples: {
-                let buffer: Subbuffer<Samples> = render_engine
-                    .storage_buffer_allocator
-                    .allocate_unsized(SAMPLE_COUNT as u64)
-                    .unwrap();
-                let mut guard = buffer.write().unwrap();
-                guard.samples_start = samples_start;
-                guard.samples_data.copy_from_slice(&samples_data);
-                drop(guard);
-                WriteDescriptorSet::buffer(2, buffer)
-            },
-            stabilization: Self::create_write_descriptor_set(
-                &render_engine.uniform_buffer_allocator,
-                3,
-                Stabilization {
-                    period,
-                    focus,
-                    center_sample,
-                },
-            ),
-            dft: {
-                let buffer: Subbuffer<Dft> = render_engine
-                    .storage_buffer_allocator
-                    .allocate_unsized(BIN_COUNT as u64)
-                    .unwrap();
-                let mut guard = buffer.write().unwrap();
-                guard.dft.copy_from_slice(&dft);
-                drop(guard);
-                WriteDescriptorSet::buffer(4, buffer)
-            },
-            bass: Self::create_write_descriptor_set(
-                &render_engine.uniform_buffer_allocator,
-                5,
-                Bass { bass, chrono },
-            ),
-            image_sampler: WriteDescriptorSet::sampler(6, render_engine.sampler.clone()),
-            image_view: WriteDescriptorSet::image_view(7, render_engine.texture.clone()),
-        };
+        let global_writes = GlobalWrites::new(
+            &uniform_buffer_allocator,
+            &storage_buffer_allocator,
+            &texture,
+            &audio_data,
+        );
 
         for i in 0..(self.panels.len()) {
             let panel = &self.panels[i];
@@ -323,18 +237,13 @@ impl RenderContext {
             let layout = self.pipelines[i].layout().set_layouts()[0].clone();
 
             let writes = panel.get_write_descriptor_sets(
-                &render_engine.uniform_buffer_allocator,
-                screen_scale,
+                &uniform_buffer_allocator,
+                vec2(window_size.width as f32, window_size.height as f32),
                 global_writes.clone(),
             );
 
-            let descriptor_set = DescriptorSet::new(
-                render_engine.descriptor_set_allocator.clone(),
-                layout,
-                writes,
-                [],
-            )
-            .unwrap();
+            let descriptor_set =
+                DescriptorSet::new(descriptor_set_allocator.clone(), layout, writes, []).unwrap();
 
             builder
                 .bind_pipeline_graphics(self.pipelines[i].clone())
@@ -346,10 +255,7 @@ impl RenderContext {
                     descriptor_set,
                 )
                 .unwrap();
-            unsafe {
-                builder.draw_indexed(render_engine.mesh.index_buffer.len() as u32, 1, 0, 0, 0)
-            }
-            .unwrap();
+            unsafe { builder.draw_indexed(mesh.index_buffer.len() as u32, 1, 0, 0, 0) }.unwrap();
         }
 
         builder.end_render_pass(Default::default()).unwrap();
@@ -360,10 +266,10 @@ impl RenderContext {
             .take()
             .unwrap()
             .join(acquire_future)
-            .then_execute(render_engine.queue.clone(), command_buffer)
+            .then_execute(queue.clone(), command_buffer)
             .unwrap()
             .then_swapchain_present(
-                render_engine.queue.clone(),
+                queue.clone(),
                 SwapchainPresentInfo::swapchain_image_index(self.swapchain.clone(), image_index),
             )
             .then_signal_fence_and_flush();
@@ -374,11 +280,11 @@ impl RenderContext {
             }
             Err(VulkanError::OutOfDate) => {
                 self.recreate_swapchain = true;
-                self.previous_frame_end = Some(sync::now(render_engine.device.clone()).boxed());
+                self.previous_frame_end = Some(sync::now(device.clone()).boxed());
             }
             Err(e) => {
                 println!("failed to flush future: {e}");
-                self.previous_frame_end = Some(sync::now(render_engine.device.clone()).boxed());
+                self.previous_frame_end = Some(sync::now(device.clone()).boxed());
             }
         }
     }
