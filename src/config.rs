@@ -19,7 +19,7 @@ pub struct Config {
     pub window_size: LogicalSize<i32>,
     pub panels: Vec<Panel>,
 
-    pub time_frames: bool,
+    pub frame_times: bool,
 }
 
 impl Default for Config {
@@ -39,7 +39,7 @@ impl Default for Config {
                 }),
                 transform: PanelTransform::FULLSCREEN,
             }],
-            time_frames: false,
+            frame_times: false,
         }
     }
 }

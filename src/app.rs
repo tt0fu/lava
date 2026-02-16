@@ -58,7 +58,7 @@ impl ApplicationHandler for App {
     ) {
         match event {
             WindowEvent::CloseRequested => {
-                if self.config.time_frames {
+                if self.config.frame_times {
                     self.frame_timer.print_results();
                 }
                 event_loop.exit();
@@ -67,7 +67,7 @@ impl ApplicationHandler for App {
                 self.video_engine.resize();
             }
             WindowEvent::RedrawRequested => {
-                if self.config.time_frames {
+                if self.config.frame_times {
                     self.frame_timer.start_frame();
                 }
 
@@ -76,7 +76,7 @@ impl ApplicationHandler for App {
                     &self.audio_engine.update(),
                 );
 
-                if self.config.time_frames {
+                if self.config.frame_times {
                     self.frame_timer.end_frame();
                 }
                 self.window.as_ref().unwrap().request_redraw();
