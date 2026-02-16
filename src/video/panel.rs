@@ -2,11 +2,11 @@ use crate::{
     config::Config,
     video::{
         GlobalWrites, PanelTransform, create_write_descriptor_set,
-        shaders::{
-            self, AspectRatio, GrayVenueGridnodeParameters, ImageParameters,
-            MaskedPatternParameters, SimplePatternParameters, SpectrogramParameters, Transform,
-            WaveformParameters,
+        shader_types::{
+            GrayVenueGridnodeParameters, ImageParameters, MaskedPatternParameters,
+            SimplePatternParameters, SpectrogramParameters, WaveformParameters,
         },
+        shaders::{self, AspectRatio, Transform},
     },
 };
 
@@ -17,17 +17,32 @@ use vulkano::{
     shader::EntryPoint,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "parameters")]
 pub enum PanelMaterial {
+    #[serde(rename = "waveform")]
     Waveform(WaveformParameters),
+    #[serde(rename = "spectrogram")]
     Spectrogram(SpectrogramParameters),
+    #[serde(rename = "simple_pattern")]
     SimplePattern(SimplePatternParameters),
+    #[serde(rename = "masked_pattern")]
     MaskedPattern(MaskedPatternParameters),
+    #[serde(rename = "image")]
     Image(ImageParameters),
+    #[serde(rename = "gray_venue_gridnode")]
     GrayVenueGridnode(GrayVenueGridnodeParameters),
 }
 
-#[derive(Clone, Copy)]
+impl Default for PanelMaterial {
+    fn default() -> Self {
+        Self::Waveform(Default::default())
+    }
+}
+
+use serde::{Deserialize, Serialize};
+#[derive(Default, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Panel {
     pub material: PanelMaterial,
     pub transform: PanelTransform,
@@ -89,27 +104,39 @@ impl Panel {
             },
         );
 
-        match self.material {
+        match &self.material {
             PanelMaterial::Waveform(parameters) => vec![
                 transform_write,
                 aspect_ratio_write,
                 global_writes.samples,
                 global_writes.stabilization,
                 global_writes.bass,
-                create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+                create_write_descriptor_set::<shaders::WaveformParameters>(
+                    &uniform_buffer_allocator,
+                    10,
+                    parameters.clone().into(),
+                ),
             ],
             PanelMaterial::Spectrogram(parameters) => vec![
                 transform_write,
                 aspect_ratio_write,
                 global_writes.dft,
                 global_writes.bass,
-                create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+                create_write_descriptor_set::<shaders::SpectrogramParameters>(
+                    &uniform_buffer_allocator,
+                    10,
+                    parameters.clone().into(),
+                ),
             ],
             PanelMaterial::SimplePattern(parameters) => vec![
                 transform_write,
                 aspect_ratio_write,
                 global_writes.bass,
-                create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+                create_write_descriptor_set::<shaders::SimplePatternParameters>(
+                    &uniform_buffer_allocator,
+                    10,
+                    parameters.clone().into(),
+                ),
             ],
             PanelMaterial::MaskedPattern(parameters) => vec![
                 transform_write,
@@ -117,20 +144,32 @@ impl Panel {
                 global_writes.bass,
                 global_writes.image_sampler,
                 global_writes.image_view,
-                create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+                create_write_descriptor_set::<shaders::MaskedPatternParameters>(
+                    &uniform_buffer_allocator,
+                    10,
+                    parameters.clone().into(),
+                ),
             ],
             PanelMaterial::Image(parameters) => vec![
                 transform_write,
                 global_writes.bass,
                 global_writes.image_sampler,
                 global_writes.image_view,
-                create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+                create_write_descriptor_set::<shaders::ImageParameters>(
+                    &uniform_buffer_allocator,
+                    10,
+                    parameters.clone().into(),
+                ),
             ],
             PanelMaterial::GrayVenueGridnode(parameters) => vec![
                 transform_write,
                 global_writes.dft,
                 global_writes.bass,
-                create_write_descriptor_set(&uniform_buffer_allocator, 10, parameters),
+                create_write_descriptor_set::<shaders::GrayVenueGridnodeParameters>(
+                    &uniform_buffer_allocator,
+                    10,
+                    parameters.clone().into(),
+                ),
             ],
         }
     }

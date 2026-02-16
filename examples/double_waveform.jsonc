@@ -1,0 +1,38 @@
+{
+  "panels": [
+    {
+      "material": {
+        "type": "waveform",
+        "parameters": {
+          "gain": 0.7,
+        },
+      },
+      "transform": {
+        "scale": { "type": "screen", "value": [1.0, -0.5] },
+        "position": { "type": "screen", "value": [0.5, 0.2] },
+      },
+    },
+    {
+      "material": {
+        "type": "waveform",
+        "parameters": {
+          "gain": 0.7,
+        },
+      },
+      "transform": {
+        "scale": { "type": "screen", "value": [1.0, 0.5] },
+        "position": { "type": "screen", "value": [0.5, 0.8] },
+      },
+    },
+    {
+      "material": {
+        "type": "masked_pattern",
+        "parameters": {},
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [500.0, 500.0] },
+        "position": { "type": "screen", "value": [0.5, 0.5] },
+      },
+    },
+  ],
+}

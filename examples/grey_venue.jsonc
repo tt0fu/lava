@@ -1,0 +1,91 @@
+{
+  "window_size": { "width": 1920, "height": 1080 },
+  "panels": [
+    {
+      "material": {
+        "type": "waveform",
+        "parameters": {
+          "gain": 0.9,
+        },
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [-1413.0, 400.0] },
+        "position": { "type": "pixels", "value": [706.5, 200.0] },
+      },
+    },
+    {
+      "material": {
+        "type": "waveform",
+        "parameters": {
+          "gain": 0.9,
+        },
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [1413.0, 400.0] },
+        "position": { "type": "pixels", "value": [706.5, 600.0] },
+      },
+    },
+    {
+      "material": {
+        "type": "simple_pattern",
+        "parameters": {},
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [800.0, 210.0] },
+        "position": { "type": "pixels", "value": [1815.0, 400.0] },
+        "angle": -90.0,
+      },
+    },
+    {
+      "material": {
+        "type": "spectrogram",
+        "parameters": {
+          "pattern": {
+            "use_rainbow": false,
+          },
+        },
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [-400.0, 210.0] },
+        "position": { "type": "pixels", "value": [1815.0, 200.0] },
+        "angle": -90.0,
+      },
+    },
+    {
+      "material": {
+        "type": "spectrogram",
+        "parameters": {
+          "pattern": {
+            "use_rainbow": false,
+          },
+        },
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [400.0, 210.0] },
+        "position": { "type": "pixels", "value": [1815.0, 600.0] },
+        "angle": -90.0,
+      },
+    },
+    {
+      "material": {
+        "type": "gray_venue_gridnode",
+        "parameters": {},
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [1920.0, 208.0] },
+        "position": { "type": "pixels", "value": [960.0, 976.0] },
+      },
+    },
+    {
+      "material": {
+        "type": "image",
+        "parameters": {},
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [250.0, 250.0] },
+        "position": { "type": "pixels", "value": [1815.0, 400.0] },
+        "angle": -90.0,
+      },
+    },
+  ],
+}

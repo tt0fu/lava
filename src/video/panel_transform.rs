@@ -1,19 +1,27 @@
 use glam::{Mat3, Vec2, vec2};
-use std::f32::consts::FRAC_PI_2;
+use serde::{Deserialize, Serialize};
+use std::f32::consts::PI;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
 pub enum PanelScale {
+    #[serde(rename = "screen")]
     Screen(Vec2),
+    #[serde(rename = "pixels")]
     Pixels(Vec2),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
 pub enum PanelPosition {
+    #[serde(rename = "screen")]
     Screen(Vec2),
+    #[serde(rename = "pixels")]
     Pixels(Vec2),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PanelTransform {
     pub scale: PanelScale,
     pub position: PanelPosition,
@@ -70,7 +78,7 @@ impl PanelTransform {
             PanelPosition::Pixels(position) => (position * 2.0) / screen_size - vec2(1.0, 1.0),
         });
 
-        let angle = to_screen * Mat3::from_angle(self.angle) * to_normalized;
+        let angle = to_screen * Mat3::from_angle(self.angle / 180.0 * PI) * to_normalized;
 
         translation * angle * scale
     }
@@ -109,7 +117,7 @@ impl PanelTransform {
                 PanelScale::Screen(scale) => PanelScale::Screen(vec2(scale.y, scale.x)),
                 PanelScale::Pixels(scale) => PanelScale::Pixels(vec2(scale.y, scale.x)),
             }),
-            angle: self.angle + FRAC_PI_2,
+            angle: self.angle + 90.0,
             ..*self
         }
     }
@@ -120,7 +128,7 @@ impl PanelTransform {
                 PanelScale::Screen(scale) => PanelScale::Screen(vec2(scale.y, scale.x)),
                 PanelScale::Pixels(scale) => PanelScale::Pixels(vec2(scale.y, scale.x)),
             }),
-            angle: self.angle - FRAC_PI_2,
+            angle: self.angle - 90.0,
             ..*self
         }
     }

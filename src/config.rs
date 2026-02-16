@@ -1,20 +1,12 @@
 use crate::video::{
-    Panel,
-    PanelMaterial::{
-        GrayVenueGridnode, Image, MaskedPattern, SimplePattern, Spectrogram, Waveform,
-    },
-    PanelPosition, PanelScale, PanelTransform,
-    shaders::{
-        GrayVenueGridnodeParameters, ImageParameters, MaskedPatternParameters, Pattern,
-        SimplePatternParameters, SpectrogramParameters, WaveformParameters,
-    },
+    Panel, PanelMaterial::Waveform, PanelTransform, shader_types::WaveformParameters,
 };
-use glam::vec2;
-use std::f32::consts::FRAC_PI_2;
-use vulkano::padded::Padded;
+use serde::{Deserialize, Serialize};
+use std::fs;
 use winit::dpi::LogicalSize;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
     pub channels: u16,
     pub fetch_buffer_size: u32,
@@ -43,126 +35,25 @@ impl Default for Config {
             panels: vec![Panel {
                 material: Waveform(WaveformParameters {
                     gain: 0.75,
-                    ..WaveformParameters::DEFAULT
+                    ..Default::default()
                 }),
                 transform: PanelTransform::FULLSCREEN,
             }],
-            time_frames: true,
+            time_frames: false,
         }
     }
 }
 
 impl Config {
-    pub fn double_waveform() -> Self {
-        Self {
-            panels: vec![
-                Panel {
-                    material: Waveform(WaveformParameters {
-                        gain: 0.7,
-                        ..WaveformParameters::DEFAULT
-                    }),
-                    transform: PanelTransform {
-                        scale: PanelScale::Screen(vec2(1.0, -0.5)),
-                        position: PanelPosition::Screen(vec2(0.5, 0.2)),
-                        angle: 0.0,
-                    },
-                },
-                Panel {
-                    material: Waveform(WaveformParameters {
-                        gain: 0.7,
-                        ..WaveformParameters::DEFAULT
-                    }),
-                    transform: PanelTransform {
-                        scale: PanelScale::Screen(vec2(1.0, 0.5)),
-                        position: PanelPosition::Screen(vec2(0.5, 0.8)),
-                        angle: 0.0,
-                    },
-                },
-                Panel {
-                    material: MaskedPattern(MaskedPatternParameters::DEFAULT),
-                    transform: PanelTransform {
-                        scale: PanelScale::Pixels(vec2(500.0, 500.0)),
-                        position: PanelPosition::Screen(vec2(0.5, 0.5)),
-                        angle: 0.0,
-                    },
-                },
-            ],
-            ..Default::default()
-        }
+    pub fn from_jsonc(path: &str) -> Self {
+        let text = fs::read_to_string(path).unwrap();
+
+        let parsed = json5::from_str(&text).unwrap();
+
+        serde_json::from_value(parsed).unwrap()
     }
 
-    pub fn grey_venue() -> Self {
-        Self {
-            panels: vec![
-                Panel {
-                    material: Waveform(WaveformParameters::DEFAULT),
-                    transform: PanelTransform::from_upper_left_corner_pixels(
-                        vec2(1413.0, 400.0),
-                        vec2(0.0, 0.0),
-                    )
-                    .flip_x(),
-                },
-                Panel {
-                    material: Waveform(WaveformParameters::DEFAULT),
-                    transform: PanelTransform::from_upper_left_corner_pixels(
-                        vec2(1413.0, 400.0),
-                        vec2(0.0, 400.0),
-                    ),
-                },
-                Panel {
-                    material: SimplePattern(SimplePatternParameters::DEFAULT),
-                    transform: PanelTransform::from_upper_left_corner_pixels(
-                        vec2(210.0, 800.0),
-                        vec2(1710.0, 0.0),
-                    )
-                    .rotate_ccw(),
-                },
-                Panel {
-                    material: Spectrogram(SpectrogramParameters {
-                        pattern: Padded(Pattern {
-                            use_rainbow: 0,
-                            ..Pattern::DEFAULT
-                        }),
-                        ..SpectrogramParameters::DEFAULT
-                    }),
-                    transform: PanelTransform::from_upper_left_corner_pixels(
-                        vec2(210.0, 400.0),
-                        vec2(1710.0, 0.0),
-                    )
-                    .flip_y()
-                    .rotate_ccw(),
-                },
-                Panel {
-                    material: Spectrogram(SpectrogramParameters {
-                        pattern: Padded(Pattern {
-                            use_rainbow: 0,
-                            ..Pattern::DEFAULT
-                        }),
-                        ..SpectrogramParameters::DEFAULT
-                    }),
-                    transform: PanelTransform::from_upper_left_corner_pixels(
-                        vec2(210.0, 400.0),
-                        vec2(1710.0, 400.0),
-                    )
-                    .rotate_ccw(),
-                },
-                Panel {
-                    material: GrayVenueGridnode(GrayVenueGridnodeParameters::DEFAULT),
-                    transform: PanelTransform::from_upper_left_corner_pixels(
-                        vec2(1920.0, 208.0),
-                        vec2(0.0, 872.0),
-                    ),
-                },
-                Panel {
-                    material: Image(ImageParameters::DEFAULT),
-                    transform: PanelTransform {
-                        scale: PanelScale::Pixels(vec2(250.0, 250.0)),
-                        position: PanelPosition::Pixels(vec2(1710.0 + (210.0 / 2.0), 400.0)),
-                        angle: -FRAC_PI_2,
-                    },
-                },
-            ],
-            ..Default::default()
-        }
+    pub fn to_jsonc(&self) -> String {
+        serde_json::to_string(self).unwrap()
     }
 }

@@ -1,4 +1,7 @@
 ![](assets/logo.png)
-# Lava, a vulkan real-time audio visualizer/visualizer engine made for complex screen mappings
+# Lava, a vulkan audio visualizer engine
 ![](assets/screenshot.png)
-This is very WIP, do not use unless you're willing to understand all 2054 (as of 2026.01.29) lines of code in here
+## Usage
+`lava path/to/config.jsonc`
+If no path is provided, the default (fullscreen waveform) is loaded.
+You can find some example configs in the [examples](./examples) directory

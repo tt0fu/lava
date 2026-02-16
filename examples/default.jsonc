@@ -1,0 +1,36 @@
+{
+  "channels": 1,
+  "fetch_buffer_size": 512,
+  "store_buffer_size": 2048,
+  "sample_count": 8192,
+  "bin_count": 256,
+  "sample_rate": 48000,
+  "window_size": { "width": 1920, "height": 1080 },
+  "panels": [
+    {
+      "material": {
+        "type": "waveform",
+        "parameters": {
+          "pattern": {
+            "color": [1.0, 1.0, 1.0],
+            "use_rainbow": true,
+            "lightness": 0.8,
+            "chroma": 0.1,
+            "scale": 1.0,
+            "repeats": 2.0,
+            "pattern_speed": 1.0,
+            "scroll_speed": 2.0,
+          },
+          "line_width": 50.0,
+          "gain": 0.75,
+        },
+      },
+      "transform": {
+        "scale": { "type": "screen", "value": [1.0, 1.0] },
+        "position": { "type": "screen", "value": [0.5, 0.5] },
+        "angle": 0.0,
+      },
+    },
+  ],
+  "time_frames": false,
+}
