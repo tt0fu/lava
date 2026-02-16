@@ -1,15 +1,13 @@
-use std::{io::Cursor, sync::Arc};
+use image::ImageReader;
+use std::{path::Path, sync::Arc};
 use vulkano::{
-    DeviceSize, buffer::{
-        Buffer, BufferCreateInfo, BufferUsage,
-    },
+    DeviceSize,
+    buffer::{Buffer, BufferCreateInfo, BufferUsage},
     command_buffer::{
         AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferToImageInfo,
         PrimaryCommandBufferAbstract, allocator::StandardCommandBufferAllocator,
     },
-    device::{
-        Device, Queue,
-    },
+    device::{Device, Queue},
     format::Format,
     image::{
         Image, ImageCreateInfo, ImageType, ImageUsage,
@@ -29,6 +27,7 @@ impl Texture {
         queue: &Arc<Queue>,
         memory_allocator: &Arc<StandardMemoryAllocator>,
         command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
+        path: &Path,
     ) -> Self {
         let mut uploads = AutoCommandBufferBuilder::primary(
             command_buffer_allocator.clone(),
@@ -38,10 +37,12 @@ impl Texture {
         .unwrap();
 
         let image_view = {
-            let decoder = png::Decoder::new(Cursor::new(include_bytes!("../assets/image.png")));
-            let mut reader = decoder.read_info().unwrap();
-            let info = reader.info();
-            let extent = [info.width, info.height, 1];
+            let rgba = ImageReader::open(path)
+                .unwrap()
+                .decode()
+                .unwrap()
+                .to_rgba32f();
+            let extent = [rgba.width(), rgba.height(), 1];
 
             let upload_buffer = Buffer::new_slice(
                 memory_allocator.clone(),
@@ -54,19 +55,19 @@ impl Texture {
                         | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
                     ..Default::default()
                 },
-                (info.width * info.height * 4) as DeviceSize,
+                (extent[0] * extent[1] * 4) as DeviceSize,
             )
             .unwrap();
 
-            reader
-                .next_frame(&mut upload_buffer.write().unwrap())
-                .unwrap();
+            let mut guard = upload_buffer.write().unwrap();
+            guard.copy_from_slice(rgba.iter().as_slice());
+            drop(guard);
 
             let image = Image::new(
                 memory_allocator.clone(),
                 ImageCreateInfo {
                     image_type: ImageType::Dim2d,
-                    format: Format::R8G8B8A8_UNORM,
+                    format: Format::R32G32B32A32_SFLOAT,
                     extent,
                     usage: ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
                     ..Default::default()

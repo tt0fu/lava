@@ -5,7 +5,7 @@ mod stats;
 mod video;
 
 use app::App;
-use std::error::Error;
+use std::{error::Error, path::Path};
 use winit::event_loop::{ControlFlow, EventLoop};
 
 use crate::config::Config;
@@ -15,7 +15,7 @@ fn main() -> Result<(), impl Error> {
         let args = std::env::args().collect::<Vec<String>>();
         match args.len() {
             1 => Config::default(),
-            2 => Config::from_jsonc(args[1].as_str()),
+            2 => Config::from_jsonc(Path::new(args[1].as_str())),
             _ => {
                 panic!("Usage: lava [path/to/config.jsonc]");
             }

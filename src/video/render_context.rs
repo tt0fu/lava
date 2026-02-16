@@ -153,7 +153,7 @@ impl RenderContext {
         uniform_buffer_allocator: &SubbufferAllocator,
         storage_buffer_allocator: &SubbufferAllocator,
         mesh: &Mesh,
-        texture: &Texture,
+        texture: &Option<Texture>,
         window_size: &PhysicalSize<u32>,
         audio_data: &AudioData,
     ) {

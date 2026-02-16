@@ -142,8 +142,8 @@ impl Panel {
                 transform_write,
                 aspect_ratio_write,
                 global_writes.bass,
-                global_writes.image_sampler,
-                global_writes.image_view,
+                global_writes.image.clone().unwrap()[0].clone(),
+                global_writes.image.clone().unwrap()[1].clone(),
                 create_write_descriptor_set::<shaders::MaskedPatternParameters>(
                     &uniform_buffer_allocator,
                     10,
@@ -153,8 +153,8 @@ impl Panel {
             PanelMaterial::Image(parameters) => vec![
                 transform_write,
                 global_writes.bass,
-                global_writes.image_sampler,
-                global_writes.image_view,
+                global_writes.image.clone().unwrap()[0].clone(),
+                global_writes.image.clone().unwrap()[1].clone(),
                 create_write_descriptor_set::<shaders::ImageParameters>(
                     &uniform_buffer_allocator,
                     10,

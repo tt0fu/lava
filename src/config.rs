@@ -2,7 +2,10 @@ use crate::video::{
     Panel, PanelMaterial::Waveform, PanelTransform, shader_types::WaveformParameters,
 };
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use winit::dpi::LogicalSize;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -18,6 +21,7 @@ pub struct Config {
 
     pub window_size: LogicalSize<i32>,
     pub panels: Vec<Panel>,
+    pub image_path: Option<PathBuf>,
 
     pub frame_times: bool,
 }
@@ -39,18 +43,23 @@ impl Default for Config {
                 }),
                 transform: PanelTransform::FULLSCREEN,
             }],
+            image_path: None,
             frame_times: false,
         }
     }
 }
 
 impl Config {
-    pub fn from_jsonc(path: &str) -> Self {
+    pub fn from_jsonc(path: &Path) -> Self {
         let text = fs::read_to_string(path).unwrap();
 
         let parsed = json5::from_str(&text).unwrap();
 
-        serde_json::from_value(parsed).unwrap()
+        let mut config: Config = serde_json::from_value(parsed).unwrap();
+        if let Some(image_path) = config.image_path {
+            config.image_path = Some(path.to_path_buf().parent().unwrap().join(image_path));
+        }
+        config
     }
 
     pub fn to_jsonc(&self) -> String {

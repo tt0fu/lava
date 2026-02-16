@@ -25,7 +25,7 @@ impl App {
         Self {
             config: config.clone(),
             audio_engine: AudioEngine::new(config),
-            video_engine: VideoEngine::new(event_loop),
+            video_engine: VideoEngine::new(event_loop, config),
             window: None,
             frame_timer: FrameTimer::new(),
         }

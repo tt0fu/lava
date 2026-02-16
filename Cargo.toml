@@ -10,7 +10,7 @@ dead_code = "allow"
 cpal = { version = "0.17.1", features = ["jack"] }
 
 glam = { version = "0.32.0", features = ["serde"] }
-png = "0.18.1"
+image = "0.25.9"
 
 vulkano = {version = "0.35.2", features = ["serde"]}
 vulkano-macros = "0.35.0"

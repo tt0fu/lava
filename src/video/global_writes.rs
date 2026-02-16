@@ -17,15 +17,14 @@ pub struct GlobalWrites {
     pub stabilization: WriteDescriptorSet,
     pub dft: WriteDescriptorSet,
     pub bass: WriteDescriptorSet,
-    pub image_sampler: WriteDescriptorSet,
-    pub image_view: WriteDescriptorSet,
+    pub image: Option<[WriteDescriptorSet; 2]>,
 }
 
 impl GlobalWrites {
     pub fn new(
         uniform_buffer_allocator: &SubbufferAllocator,
         storage_buffer_allocator: &SubbufferAllocator,
-        texture: &Texture,
+        texture: &Option<Texture>,
         audio_data: &AudioData,
     ) -> Self {
         Self {
@@ -60,8 +59,13 @@ impl GlobalWrites {
                 WriteDescriptorSet::buffer(4, buffer)
             },
             bass: create_write_descriptor_set(&uniform_buffer_allocator, 5, audio_data.bass),
-            image_sampler: WriteDescriptorSet::sampler(6, texture.sampler.clone()),
-            image_view: WriteDescriptorSet::image_view(7, texture.image_view.clone()),
+            image: match texture {
+                Some(tex) => Some([
+                    WriteDescriptorSet::sampler(6, tex.sampler.clone()),
+                    WriteDescriptorSet::image_view(7, tex.image_view.clone()),
+                ]),
+                None => None,
+            },
         }
     }
 }

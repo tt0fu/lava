@@ -33,13 +33,13 @@ pub struct VideoEngine {
     pub uniform_buffer_allocator: SubbufferAllocator,
     pub storage_buffer_allocator: SubbufferAllocator,
     pub mesh: Mesh,
-    pub texture: Texture,
+    pub texture: Option<Texture>,
 
     pub context: Option<RenderContext>,
 }
 
 impl VideoEngine {
-    pub fn new(event_loop: &EventLoop) -> Self {
+    pub fn new(event_loop: &EventLoop, config: &Config) -> Self {
         let library = VulkanLibrary::new().unwrap();
         let required_extensions = Surface::required_extensions(event_loop).unwrap();
         let instance = Instance::new(
@@ -133,12 +133,16 @@ impl VideoEngine {
 
         let mesh = Mesh::new(&memory_allocator);
 
-        let texture = Texture::new(
-            &device,
-            &queue,
-            &memory_allocator,
-            &command_buffer_allocator,
-        );
+        let texture = match &config.image_path {
+            Some(path) => Some(Texture::new(
+                &device,
+                &queue,
+                &memory_allocator,
+                &command_buffer_allocator,
+                &path,
+            )),
+            None => None,
+        };
 
         Self {
             instance,
