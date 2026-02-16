@@ -1,10 +1,9 @@
 #version 450
 
+#include "lib/in_out.glsl"
+
 #include "lib/consts.glsl"
 #include "structs/pattern.glsl"
-
-layout(location = 0) in vec2 UV;
-layout(location = 0) out vec4 COLOR;
 
 #include "uniforms/image.glsl"
 #include "uniforms/bass.glsl"
