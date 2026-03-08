@@ -7,9 +7,9 @@ edition = "2024"
 dead_code = "allow"
 
 [dependencies]
-cpal = { version = "0.17.1", features = ["jack"] }
+cpal = "0.17.3"
 
-glam = { version = "0.32.0", features = ["serde"] }
+glam = { version = "0.32.1", features = ["serde"] }
 image = "0.25.9"
 
 vulkano = {version = "0.35.2", features = ["serde"]}
