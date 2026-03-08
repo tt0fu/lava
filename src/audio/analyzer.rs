@@ -1,7 +1,4 @@
-use crate::{
-    audio::CircularBuffer,
-    video::shaders::{Bass, Stabilization},
-};
+use crate::audio::CircularBuffer;
 use glam::Vec2;
 use std::f32::consts::PI;
 
@@ -16,6 +13,38 @@ struct BinData {
     window_weights: Vec<f32>,
     complex_exponentials: Vec<Vec2>,
     total_window: f32,
+}
+
+#[derive(Clone)]
+pub struct Bass {
+    bass: f32,
+    chrono: f32,
+}
+
+impl From<Bass> for crate::video::shaders::Bass {
+    fn from(value: Bass) -> Self {
+        Self {
+            bass: value.bass,
+            chrono: value.chrono,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Stabilization {
+    period: f32,
+    focus: f32,
+    center_sample: f32,
+}
+
+impl From<Stabilization> for crate::video::shaders::Stabilization {
+    fn from(value: Stabilization) -> Self {
+        Self {
+            period: value.period,
+            focus: value.focus,
+            center_sample: value.center_sample,
+        }
+    }
 }
 
 #[derive(Clone)]

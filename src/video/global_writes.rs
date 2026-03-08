@@ -2,7 +2,7 @@ use crate::{
     audio::analyzer::AudioData,
     video::{
         Texture, create_write_descriptor_set,
-        shaders::{Dft, Samples},
+        shaders::{Bass, Dft, Samples, Stabilization},
     },
 };
 
@@ -38,10 +38,10 @@ impl GlobalWrites {
                 drop(guard);
                 WriteDescriptorSet::buffer(2, buffer)
             },
-            stabilization: create_write_descriptor_set(
+            stabilization: create_write_descriptor_set::<Stabilization>(
                 &uniform_buffer_allocator,
                 3,
-                audio_data.stabilization,
+                audio_data.stabilization.clone().into(),
             ),
             dft: {
                 let buffer: Subbuffer<Dft> = storage_buffer_allocator
@@ -58,7 +58,7 @@ impl GlobalWrites {
                 drop(guard);
                 WriteDescriptorSet::buffer(4, buffer)
             },
-            bass: create_write_descriptor_set(&uniform_buffer_allocator, 5, audio_data.bass),
+            bass: create_write_descriptor_set::<Bass>(&uniform_buffer_allocator, 5, audio_data.bass.clone().into()),
             image: match texture {
                 Some(tex) => Some([
                     WriteDescriptorSet::sampler(6, tex.sampler.clone()),
