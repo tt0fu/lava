@@ -28,22 +28,6 @@ pub struct PanelTransform {
     pub angle: f32,
 }
 
-const fn add(a: Vec2, b: Vec2) -> Vec2 {
-    vec2(a.x + b.x, a.y + b.y)
-}
-
-const fn sub(a: Vec2, b: Vec2) -> Vec2 {
-    vec2(a.x - b.x, a.y - b.y)
-}
-
-const fn div(a: Vec2, b: Vec2) -> Vec2 {
-    vec2(a.x / b.x, a.y / b.y)
-}
-
-const fn mul(a: Vec2, b: Vec2) -> Vec2 {
-    vec2(a.x * b.x, a.y * b.y)
-}
-
 impl PanelTransform {
     pub const FULLSCREEN: Self = Self {
         scale: PanelScale::Screen(vec2(1.0, 1.0)),
@@ -51,12 +35,12 @@ impl PanelTransform {
         angle: 0.0,
     };
 
-    pub const fn from_upper_left_corner_pixels(
+    pub fn from_upper_left_corner_pixels(
         size: Vec2,              // the size of the panel in pixels
         upper_left_corner: Vec2, // the position of the upper-left corner of the panel in pixels relative to the upper-left corner of the screen
     ) -> Self {
-        let panel_center = div(size, vec2(2.0, 2.0));
-        let position = add(upper_left_corner, panel_center);
+        let panel_center = size / 2.0;
+        let position = upper_left_corner + panel_center;
         Self {
             scale: PanelScale::Pixels(size),
             position: PanelPosition::Pixels(position),
@@ -91,27 +75,27 @@ impl PanelTransform {
         scale.x.abs() / scale.y.abs()
     }
 
-    pub const fn flip_x(&self) -> Self {
+    pub fn flip_x(&self) -> Self {
         Self {
             scale: (match self.scale {
-                PanelScale::Screen(scale) => PanelScale::Screen(mul(scale, vec2(-1.0, 1.0))),
-                PanelScale::Pixels(scale) => PanelScale::Pixels(mul(scale, vec2(-1.0, 1.0))),
+                PanelScale::Screen(scale) => PanelScale::Screen(scale * vec2(-1.0, 1.0)),
+                PanelScale::Pixels(scale) => PanelScale::Pixels(scale * vec2(-1.0, 1.0)),
             }),
             ..*self
         }
     }
 
-    pub const fn flip_y(&self) -> Self {
+    pub fn flip_y(&self) -> Self {
         Self {
             scale: (match self.scale {
-                PanelScale::Screen(scale) => PanelScale::Screen(mul(scale, vec2(1.0, -1.0))),
-                PanelScale::Pixels(scale) => PanelScale::Pixels(mul(scale, vec2(1.0, -1.0))),
+                PanelScale::Screen(scale) => PanelScale::Screen(scale * vec2(1.0, -1.0)),
+                PanelScale::Pixels(scale) => PanelScale::Pixels(scale * vec2(1.0, -1.0)),
             }),
             ..*self
         }
     }
 
-    pub const fn rotate_cw(&self) -> Self {
+    pub fn rotate_cw(&self) -> Self {
         Self {
             scale: (match self.scale {
                 PanelScale::Screen(scale) => PanelScale::Screen(vec2(scale.y, scale.x)),
@@ -122,7 +106,7 @@ impl PanelTransform {
         }
     }
 
-    pub const fn rotate_ccw(&self) -> Self {
+    pub fn rotate_ccw(&self) -> Self {
         Self {
             scale: (match self.scale {
                 PanelScale::Screen(scale) => PanelScale::Screen(vec2(scale.y, scale.x)),
