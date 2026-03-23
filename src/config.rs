@@ -19,6 +19,8 @@ pub struct Config {
     pub bin_count: usize,
     pub sample_rate: u32,
 
+    pub window_title: String,
+    pub window_decorations: bool,
     pub window_size: LogicalSize<i32>,
     pub panels: Vec<Panel>,
     pub image_path: Option<PathBuf>,
@@ -35,6 +37,8 @@ impl Default for Config {
             sample_count: 8192,
             bin_count: 256,
             sample_rate: 48000,
+            window_title: "lava visualizer".to_string(),
+            window_decorations: false,
             window_size: LogicalSize::new(1920, 1080),
             panels: vec![Panel {
                 material: Waveform(WaveformParameters {
@@ -51,15 +55,8 @@ impl Default for Config {
 
 impl Config {
     pub fn from_jsonc(path: &Path) -> Self {
-        let text = fs::read_to_string(path).unwrap();
-
-        let parsed = json5::from_str(&text).unwrap();
-
-        let mut config: Config = serde_json::from_value(parsed).unwrap();
-        if let Some(image_path) = config.image_path {
-            config.image_path = Some(path.to_path_buf().parent().unwrap().join(image_path));
-        }
-        config
+        serde_json::from_value(json5::from_str(&fs::read_to_string(path).unwrap()).unwrap())
+            .unwrap()
     }
 
     pub fn to_jsonc(&self) -> String {

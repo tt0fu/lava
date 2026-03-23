@@ -4,7 +4,7 @@ use crate::{
     video::{Mesh, RenderContext, Texture},
 };
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use vulkano::{
     VulkanLibrary,
     buffer::{
@@ -39,7 +39,7 @@ pub struct VideoEngine {
 }
 
 impl VideoEngine {
-    pub fn new(event_loop: &EventLoop, config: &Config) -> Self {
+    pub fn new(event_loop: &EventLoop, config: &Config, config_path: &PathBuf) -> Self {
         let library = VulkanLibrary::new().unwrap();
         let required_extensions = Surface::required_extensions(event_loop).unwrap();
         let instance = Instance::new(
@@ -139,7 +139,7 @@ impl VideoEngine {
                 &queue,
                 &memory_allocator,
                 &command_buffer_allocator,
-                &path,
+                &config_path.to_path_buf().parent().unwrap().join(path),
             )),
             None => None,
         };

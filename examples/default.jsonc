@@ -5,6 +5,8 @@
   "sample_count": 8192,
   "bin_count": 256,
   "sample_rate": 48000,
+  "window_title": "lava visualizer",
+  "window_decorations": false,
   "window_size": { "width": 1920, "height": 1080 },
   "panels": [
     {
@@ -32,6 +34,6 @@
       },
     },
   ],
-  "frame_times": false,
   "image_path": null,
+  "frame_times": false,
 }

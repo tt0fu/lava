@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use crate::{audio::AudioEngine, config::Config, stats::FrameTimer, video::VideoEngine};
 
@@ -21,11 +21,11 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(event_loop: &EventLoop, config: &Config) -> Self {
+    pub fn new(event_loop: &EventLoop, config: &Config, config_path: &PathBuf) -> Self {
         Self {
             config: config.clone(),
             audio_engine: AudioEngine::new(config),
-            video_engine: VideoEngine::new(event_loop, config),
+            video_engine: VideoEngine::new(event_loop, config, config_path),
             window: None,
             frame_timer: FrameTimer::new(),
         }
@@ -38,8 +38,8 @@ impl ApplicationHandler for App {
             event_loop
                 .create_window(
                     WindowAttributes::default()
-                        .with_title("lava visualizer")
-                        .with_decorations(false)
+                        .with_title(&self.config.window_title)
+                        .with_decorations(self.config.window_decorations)
                         .with_resizable(false)
                         .with_surface_size(self.config.window_size),
                 )
