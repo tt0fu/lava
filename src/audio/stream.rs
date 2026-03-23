@@ -2,7 +2,7 @@ use super::CircularBuffer;
 
 use cpal::{
     BufferSize::Fixed,
-    StreamConfig, default_host,
+    BuildStreamError, SampleFormat, StreamConfig, SupportedBufferSize, default_host,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use std::sync::{Arc, Mutex};
@@ -36,8 +36,8 @@ impl Stream {
         let buffer = Arc::new(Mutex::new(CircularBuffer::new(store_buffer_size, 0.0)));
         let buffer_clone = buffer.clone();
 
-        let stream = device
-            .build_input_stream(
+        let stream = {
+            let res = device.build_input_stream(
                 &config,
                 move |data: &[f32], _| {
                     let mut buf = buffer_clone
@@ -47,12 +47,42 @@ impl Stream {
                         buf.push(&(frame.iter().sum::<f32>() / frame.len() as f32));
                     }
                 },
-                |err| eprintln!("Stream error: {}", err),
+                |err| eprintln!("Audio stream error: {}", err),
                 None,
-            )
-            .expect("failed to build stream");
+            );
+            match res {
+                Ok(stream) => stream,
+                Err(err) => {
+                    if err == BuildStreamError::StreamConfigNotSupported {
+                        eprintln!(
+                            "Unsupported audio stream config: channels={}, fetch_buffer_size={}, sample_rate={}.",
+                            channels, fetch_buffer_size, sample_rate
+                        );
+                        eprintln!("Supported audio stream configs:");
+                        for config in device
+                            .supported_input_configs()
+                            .unwrap()
+                            .filter(|config| config.sample_format() == SampleFormat::F32)
+                        {
+                            eprintln!(
+                                "channels={}, fetch_buffer_size={}, sample_rate=[{}, {}]",
+                                config.channels(),
+                                match config.buffer_size() {
+                                    SupportedBufferSize::Range { min, max } =>
+                                        format!("[{}, {}]", min, max),
+                                    SupportedBufferSize::Unknown => "Unknown".to_string(),
+                                },
+                                config.min_sample_rate(),
+                                config.max_sample_rate()
+                            );
+                        }
+                    }
+                    panic!("Failed to build audio stream: {}", err)
+                }
+            }
+        };
 
-        stream.play().expect("error playing stream");
+        stream.play().expect("Error playing audio stream");
 
         Self {
             buffer,
