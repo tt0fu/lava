@@ -1,12 +1,35 @@
-name: Build Windows Executable
+name: Build and Release
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g., v1.0.0)"
+        required: true
+        type: string
+      release_notes:
+        description: "Release notes"
+        required: false
+        type: string
+        default: "Automated release"
 
 jobs:
   build:
-    runs-on: windows-latest
-
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: lava.exe
+            build_command: cargo build --release
+            output_path: target/release/lava.exe
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: lava
+            build_command: cargo build --release
+            output_path: target/release/lava
     steps:
       - uses: actions/checkout@v4
 
@@ -17,11 +40,55 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Cache cargo registry
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-registry-
+
+      - name: Cache cargo build
+        uses: actions/cache@v5
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-build-
+
       - name: Build release executable
-        run: cargo build --release
+        run: ${{ matrix.build_command }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: lava-windows
-          path: target/release/lava.exe
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.output_path }}
+
+  release:
+    name: Create draft release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: Release ${{ github.event.inputs.version }}
+          body: ${{ github.event.inputs.release_notes }}
+          draft: true
+          files: |
+            artifacts/lava.exe/lava.exe
+            artifacts/lava/lava
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
