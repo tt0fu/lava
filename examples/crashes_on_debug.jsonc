@@ -1,0 +1,10 @@
+{
+  "panels": [
+    {
+      "material": {
+        "type": "simple_pattern",
+        "parameters": {},
+      },
+    },
+  ],
+}
