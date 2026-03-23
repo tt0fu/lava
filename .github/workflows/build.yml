@@ -40,6 +40,12 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Install ALSA and Jack development libraries
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt update
+          sudo apt install -y libasound2-dev libjack-jackd2-dev
+
       - name: Cache cargo registry
         uses: actions/cache@v5
         with:
@@ -76,6 +82,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: artifacts
+          merge-multiple: true
 
       - name: Display structure of downloaded files
         run: ls -R artifacts
@@ -88,7 +95,7 @@ jobs:
           body: ${{ github.event.inputs.release_notes }}
           draft: true
           files: |
-            artifacts/lava.exe/lava.exe
-            artifacts/lava/lava
+            artifacts/lava.exe
+            artifacts/lava
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
