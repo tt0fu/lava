@@ -37,7 +37,6 @@
 
         packages = with pkgs; [
           rustToolchain
-          vscode-extensions.vadimcn.vscode-lldb
           gdb
           cargo-expand
 
