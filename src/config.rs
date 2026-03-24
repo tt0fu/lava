@@ -55,7 +55,7 @@ impl Default for Config {
 
 impl Config {
     pub fn from_jsonc(path: &Path) -> Self {
-        serde_json::from_value(json5::from_str(&fs::read_to_string(path).unwrap()).unwrap())
+        serde_json::from_value(jsonc::parse_jsonc(&fs::read_to_string(path).unwrap()).unwrap())
             .unwrap()
     }
 
