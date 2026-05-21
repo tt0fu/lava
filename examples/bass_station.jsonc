@@ -1,0 +1,74 @@
+{
+  "window_size": { "width": 1920, "height": 1080 },
+  "panels": [
+    {
+      "material": {
+        "type": "waveform",
+        "parameters": {},
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [1192.0, 671.0] },
+        "position": { "type": "pixels", "value": [596.0, 744.5] },
+      },
+    },
+    {
+      "material": {
+        "type": "simple_pattern",
+        "parameters": {
+          "pattern": {
+            "scale": 3.0,
+          },
+        },
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [602.0, 1080.0] },
+        "position": { "type": "pixels", "value": [1619.0, 540.0] },
+      },
+    },
+    {
+      "material": {
+        "type": "spectrogram",
+        "parameters": {
+          "pattern": {
+            "use_rainbow": false,
+          },
+        },
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [-215.0, 215.0] },
+        "position": { "type": "pixels", "value": [1738.0, 310.0] },
+        "angle": 45.0,
+      },
+    },
+    {
+      "material": {
+        "type": "spectrogram",
+        "parameters": {
+          "pattern": {
+            "use_rainbow": false,
+          },
+        },
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [215.0, 215.0] },
+        "position": { "type": "pixels", "value": [1738.0, 780.0] },
+        "angle": 135.0,
+      },
+    },
+    {
+      "material": {
+        "type": "image",
+        "parameters": {
+          "scale_min": 0.7,
+          "scale_max": 1.0,
+        },
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [160.0, 160.0] },
+        "position": { "type": "pixels", "value": [1645.0, 545.0] },
+        "angle": -90.0,
+      },
+    },
+  ],
+  "image_path": "./logo.png",
+}
