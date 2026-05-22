@@ -189,7 +189,7 @@ impl Analyzer {
 
     fn get_bass_eq(&self, bin: f32) -> f32 {
         let frequency = self.get_frequency(bin);
-        (1.0 - frequency / 200.0).max(0.0)
+        (1.0 - ((frequency - 200.0) / 50.0).exp()).max(0.0)
     }
 
     pub fn analyze(&mut self) -> AudioData {
@@ -208,8 +208,7 @@ impl Analyzer {
                 let mut prev = 0.0;
                 let mut prevprev = 0.0;
 
-                let mut bass_total = self.get_bass_eq(0.0);
-                let mut bass_sum = bass_total * prev;
+                let mut bass_max = self.get_bass_eq(0.0) * prev;
 
                 for bin in 0..self.bin_count {
                     let bin_f = bin as f32;
@@ -225,11 +224,9 @@ impl Analyzer {
                     dft[bin] = amplitude / bin_data.total_window;
                     cur = dft[bin].length();
 
-                    let bass_eq = self.get_bass_eq(bin_f);
-                    bass_sum += bass_eq * cur;
-                    bass_total += bass_eq;
+                    bass_max = bass_max.max(cur * self.get_bass_eq(bin_f));
 
-                    if (prev > cur)
+                        if (prev > cur)
                         && (prev > prevprev)
                         && (prev * (1.0 - (bin_f) / (bin_count_f)) > mx)
                     {
@@ -241,7 +238,7 @@ impl Analyzer {
                     prev = cur;
                 }
 
-                let bass = (bass_sum / bass_total * 10.0).clamp(0.0, 1.0);
+                let bass = (bass_max * 1.5).clamp(0.0, 1.0);
                 self.chrono += ((self.since_last_analysis as f32) * bass) as u64;
                 self.since_last_analysis = 0;
 

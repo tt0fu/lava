@@ -1,17 +1,17 @@
 {
   "window_size": { "width": 1920, "height": 1080 },
   "panels": [
-    // {
-    //   // VRSL Grid
-    //   "material": {
-    //     "type": "simple_pattern",
-    //     "parameters": {},
-    //   },
-    //   "transform": {
-    //     "scale": { "type": "pixels", "value": [1920.0, 208.0] },
-    //     "position": { "type": "pixels", "value": [960.0, 104.0] },
-    //   },
-    // },
+    {
+      // VRSL Grid
+      "material": {
+        "type": "neon_symphony_hnode",
+        "parameters": {},
+      },
+      "transform": {
+        "scale": { "type": "pixels", "value": [1920.0, 208.0] },
+        "position": { "type": "pixels", "value": [960.0, 104.0] },
+      },
+    },
     {
       // Left
       "material": {
@@ -243,7 +243,10 @@
       // Gobo 2
       "material": {
         "type": "image",
-        "parameters": {},
+        "parameters": {
+          "scale_min": 1.0,
+          "scale_max": 1.0,
+        },
       },
       "transform": {
         "scale": { "type": "pixels", "value": [76.0, 76.0] },
@@ -254,7 +257,10 @@
       // Gobo 1
       "material": {
         "type": "image",
-        "parameters": {},
+        "parameters": {
+          "scale_min": 1.0,
+          "scale_max": 1.0,
+        },
       },
       "transform": {
         "scale": { "type": "pixels", "value": [76.0, 76.0] },

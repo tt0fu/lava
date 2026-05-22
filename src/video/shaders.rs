@@ -24,6 +24,10 @@ vulkano_shaders::shader! {
             ty: "fragment",
             path: "src/video/shaders/gray_venue_gridnode.glsl",
         },
+        neon_symphony_hnode: {
+            ty: "fragment",
+            path: "src/video/shaders/neon_symphony_hnode.glsl",
+        },
         image: {
             ty: "fragment",
             path: "src/video/shaders/image.glsl",

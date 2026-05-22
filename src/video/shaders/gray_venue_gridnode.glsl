@@ -31,7 +31,7 @@ float mover(uint id, uint channel) {
     id %= 8u;
     float x = float(id) / 8.0;
     float mag = dft_bass(x);
-    Mover mover = Mover(0.5, 0.33 + clamp(mag, 0.0, 0.4), mag * 2.0, 1.0, mag * 3.0 - 0.5, rainbow_chrono(x), 0.0, 0.0, 0.5);
+    Mover mover = Mover(0.5, 0.33 + clamp(mag, 0.0, 0.4), mag * 2.0, 1.0, mag * 3.0 - 0.5, rainbow_chrono(x), 0.0, 0, 0.5);
     return decode(mover, channel);
 }
 
@@ -39,7 +39,7 @@ float parlight(uint id, uint channel) {
     id %= 8u;
     float x = float(id) / 8.0;
     float mag = dft_bass(x);
-    ParLight parlight = ParLight(mag * 4.0, rainbow_chrono(x), mag * 3.0 - 0.5);
+    SimpleLight parlight = SimpleLight(mag * 4.0, rainbow_chrono(x), mag * 3.0 - 0.5);
     return decode(parlight, channel);
 }
 
@@ -67,7 +67,7 @@ float get_channel(uint id) {
 }
 
 void main() {
-    uint id = channel_id(UV);
+    uint id = channel_id(UV, GRIDNODE_RESOLUTION);
     float val = get_channel(id);
     COLOR = vec4(val, val, val, 1.0);
 }

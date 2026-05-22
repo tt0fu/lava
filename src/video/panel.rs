@@ -4,7 +4,8 @@ use crate::{
         GlobalWrites, PanelTransform, create_write_descriptor_set,
         shader_types::{
             GrayVenueGridnodeParameters, ImageParameters, MaskedPatternParameters,
-            SimplePatternParameters, SpectrogramParameters, WaveformParameters,
+            NeonSymphonyHnodeParameters, SimplePatternParameters, SpectrogramParameters,
+            WaveformParameters,
         },
         shaders::{self, AspectRatio, Transform},
     },
@@ -32,6 +33,8 @@ pub enum PanelMaterial {
     Image(ImageParameters),
     #[serde(rename = "gray_venue_gridnode")]
     GrayVenueGridnode(GrayVenueGridnodeParameters),
+    #[serde(rename = "neon_symphony_hnode")]
+    NeonSymphonyHnode(NeonSymphonyHnodeParameters),
 }
 
 impl Default for PanelMaterial {
@@ -58,6 +61,7 @@ impl Panel {
             PanelMaterial::MaskedPattern(_) => shaders::load_masked_pattern(device_clone),
             PanelMaterial::Image(_) => shaders::load_image(device_clone),
             PanelMaterial::GrayVenueGridnode(_) => shaders::load_gray_venue_gridnode(device_clone),
+            PanelMaterial::NeonSymphonyHnode(_) => shaders::load_neon_symphony_hnode(device_clone),
         }
         .unwrap()
         .specialize(
@@ -166,6 +170,16 @@ impl Panel {
                 global_writes.dft,
                 global_writes.bass,
                 create_write_descriptor_set::<shaders::GrayVenueGridnodeParameters>(
+                    &uniform_buffer_allocator,
+                    10,
+                    parameters.clone().into(),
+                ),
+            ],
+            PanelMaterial::NeonSymphonyHnode(parameters) => vec![
+                transform_write,
+                global_writes.dft,
+                global_writes.bass,
+                create_write_descriptor_set::<shaders::NeonSymphonyHnodeParameters>(
                     &uniform_buffer_allocator,
                     10,
                     parameters.clone().into(),

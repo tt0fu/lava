@@ -141,6 +141,31 @@ impl From<GrayVenueGridnodeParameters> for shaders::GrayVenueGridnodeParameters 
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
+pub struct NeonSymphonyHnodeParameters {
+    pub lightness: f32,
+    pub chroma: f32,
+}
+
+impl Default for NeonSymphonyHnodeParameters {
+    fn default() -> Self {
+        Self {
+            lightness: 0.8,
+            chroma: 0.1,
+        }
+    }
+}
+
+impl From<NeonSymphonyHnodeParameters> for shaders::NeonSymphonyHnodeParameters {
+    fn from(value: NeonSymphonyHnodeParameters) -> Self {
+        Self {
+            lightness: value.lightness.into(),
+            chroma: value.chroma,
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ImageParameters {
     pub scale_min: f32,
     pub scale_max: f32,
