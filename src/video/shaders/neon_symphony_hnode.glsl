@@ -177,12 +177,13 @@ float get_channel_value(uint id) {
     if (inside(id, TRUSS_SPOTS_1_START, TRUSS_SPOTS_1_END, TRUSS_SPOTS_2_START, TRUSS_SPOTS_2_END)) {
         uint channel = id % 13;
         id /= 13;
+        uint in_truss = 3 - id % 4;
         return decode(
             Mover(
-                0.5, // pan
-                0.3, // tilt
-                bass, // zoom
-                0.0, // dimmer
+                0.0, // pan
+                sin(6.2831 * (chrono + float(id) / 32.0)) * 0.25 + 0.5, // tilt
+                1.0, // zoom
+                clamp(bass * 4.0 - float(in_truss), 0.0, 1.0), // dimmer
                 0.0, // strobe
                 rainbow_chrono(float(id) / 32.0), // color
                 bass, // gobo speed
@@ -216,49 +217,86 @@ float get_channel_value(uint id) {
         id /= 5;
         return decode(
             SimpleLight(
-                bass, // dimmer
+                bass, /// 2.0, // dimmer
                 rainbow_chrono(float(id) / 40.0), // color
                 clamp(10.0 * (bass - 1.0) + 1.0, 0.0, 1.0) // strobe
             ),
             channel
         );
     }
-    // if (inside(id, DIAMOND_SPOTS_3_START, DIAMOND_SPOTS_3_END, DIAMOND_SPOTS_4_START, DIAMOND_SPOTS_4_END)) {
-    //     uint channel = id % 13;
-    //     id /= 13;
-    //     return decode(
-    //         Mover(
-    //             0.5, // pan
-    //             0.5, // tilt
-    //             1.0, // zoom
-    //             bass, // dimmer
-    //             clamp(10.0 * (bass - 1.0) + 1.0, 0.0, 1.0), // strobe
-    //             rainbow_chrono(float(id) / 40.0), // color
-    //             bass, // gobo speed
-    //             0, // gobo
-    //             0.5 // speed
-    //         ),
-    //         channel
-    //     );
-    // }
-    // if (inside(id, DIAMOND_LIGHTBARS_4_START, DIAMOND_LIGHTBARS_4_END, DIAMOND_LIGHTBARS_5_START, DIAMOND_LIGHTBARS_5_END)) {
-    //     uint channel = id % 18;
-    //     id /= 18;
+    if (inside(id, DIAMOND_SPOTS_3_START, DIAMOND_SPOTS_3_END, DIAMOND_SPOTS_4_START, DIAMOND_SPOTS_4_END)) {
+        uint channel = id % 13;
+        id /= 13;
+        return decode(
+            Mover(
+                0.5, // pan
+                0.5, // tilt
+                1.0, // zoom
+                bass, // dimmer
+                clamp(10.0 * (bass - 1.0) + 1.0, 0.0, 1.0), // strobe
+                rainbow_chrono(float(id) / 40.0), // color
+                bass, // gobo speed
+                0, // gobo
+                0.5 // speed
+            ),
+            channel
+        );
+    }
+    if (inside(id, DIAMOND_LIGHTBARS_4_START, DIAMOND_LIGHTBARS_4_END, DIAMOND_LIGHTBARS_5_START, DIAMOND_LIGHTBARS_5_END)) {
+        uint channel = id % 18;
+        id /= 18;
 
-    //     float[12] dimmers;
-    //     for (int i = 0; i < 12; i++) {
-    //         dimmers[i] = clamp(bass * 6.0 + 0.5 - abs(float(i) - 5.5), 0.0, 1.0);
-    //     }
-    //     return decode(
-    //         TiltingLightbar(
-    //             sin(6.2831 * (chrono + float(id) / 40.0)) * 0.25 + 0.5, // tilt
-    //             rainbow_chrono(float(id) / 40.0), // color
-    //             clamp(10.0 * (bass - 1.0) + 1.0, 0.0, 1.0), // strobe
-    //             dimmers // dimmers
-    //         ),
-    //         channel
-    //     );
-    // }
+        float[12] dimmers;
+        for (int i = 0; i < 12; i++) {
+            dimmers[i] = clamp(bass * 6.0 + 0.5 - abs(float(i) - 5.5), 0.0, 1.0);
+        }
+        return decode(
+            TiltingLightbar(
+                0.25, // tilt
+                rainbow_chrono(float(id) / 40.0), // color
+                clamp(10.0 * (bass - 1.0) + 1.0, 0.0, 1.0), // strobe
+                dimmers // dimmers
+            ),
+            channel
+        );
+    }
+    if (inside(id, CEILING_SCREEN_POSITIONERS_START, CEILING_SCREEN_POSITIONERS_END)) {
+        uint channel = id % 7;
+        id /= 7;
+        return decode(
+            XYRotationPositioner(
+                false, // take control
+                0.5, // x
+                0.5, // y
+                0.5 // rotation
+            ),
+            channel
+        );
+    }
+    if (inside(id, DIAMOND_SCREEN_POSITIONERS_START, DIAMOND_SCREEN_POSITIONERS_END)) {
+        uint channel = id % 7;
+        id /= 7;
+        return decode(
+            XYRotationPositioner(
+                false, // take control
+                0.5, // x
+                0.5, // y
+                0.5 // rotation
+            ),
+            channel
+        );
+    }
+    if (inside(id, TRUSS_POSITIONERS_5_START, TRUSS_POSITIONERS_5_END, TRUSS_POSITIONERS_6_START, TRUSS_POSITIONERS_6_END)) {
+        uint channel = id % 2;
+        id /= 2;
+        return decode(
+            VerticalPositioner(
+                false, // take control
+                0.5 // position
+            ),
+            channel
+        );
+    }
     return 0;
 }
 
