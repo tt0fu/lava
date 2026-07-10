@@ -20,6 +20,7 @@ pub struct Texture {
     pub image_view: Arc<ImageView>,
     pub sampler: Arc<Sampler>,
 }
+use anyhow::Result;
 
 impl Texture {
     pub fn new(
@@ -28,20 +29,15 @@ impl Texture {
         memory_allocator: &Arc<StandardMemoryAllocator>,
         command_buffer_allocator: &Arc<StandardCommandBufferAllocator>,
         path: &Path,
-    ) -> Self {
+    ) -> Result<Self> {
         let mut uploads = AutoCommandBufferBuilder::primary(
             command_buffer_allocator.clone(),
             queue.queue_family_index(),
             CommandBufferUsage::OneTimeSubmit,
-        )
-        .unwrap();
+        )?;
 
         let image_view = {
-            let rgba = ImageReader::open(path)
-                .unwrap()
-                .decode()
-                .unwrap()
-                .to_rgba32f();
+            let rgba = ImageReader::open(path)?.decode()?.to_rgba32f();
             let extent = [rgba.width(), rgba.height(), 1];
 
             let upload_buffer = Buffer::new_slice(
@@ -56,10 +52,9 @@ impl Texture {
                     ..Default::default()
                 },
                 (extent[0] * extent[1] * 4) as DeviceSize,
-            )
-            .unwrap();
+            )?;
 
-            let mut guard = upload_buffer.write().unwrap();
+            let mut guard = upload_buffer.write()?;
             guard.copy_from_slice(rgba.iter().as_slice());
             drop(guard);
 
@@ -73,17 +68,14 @@ impl Texture {
                     ..Default::default()
                 },
                 AllocationCreateInfo::default(),
-            )
-            .unwrap();
+            )?;
 
-            uploads
-                .copy_buffer_to_image(CopyBufferToImageInfo::buffer_image(
-                    upload_buffer,
-                    image.clone(),
-                ))
-                .unwrap();
+            uploads.copy_buffer_to_image(CopyBufferToImageInfo::buffer_image(
+                upload_buffer,
+                image.clone(),
+            ))?;
 
-            ImageView::new_default(image).unwrap()
+            ImageView::new_default(image)?
         };
 
         let sampler = Sampler::new(
@@ -94,14 +86,13 @@ impl Texture {
                 address_mode: [SamplerAddressMode::ClampToEdge; 3],
                 ..Default::default()
             },
-        )
-        .unwrap();
+        )?;
 
-        let _ = uploads.build().unwrap().execute(queue.clone()).unwrap();
+        let _ = uploads.build()?.execute(queue.clone())?;
 
-        Self {
+        Ok(Self {
             image_view,
             sampler,
-        }
+        })
     }
 }

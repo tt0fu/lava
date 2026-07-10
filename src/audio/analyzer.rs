@@ -226,7 +226,7 @@ impl Analyzer {
 
                     bass_max = bass_max.max(cur * self.get_bass_eq(bin_f));
 
-                        if (prev > cur)
+                    if (prev > cur)
                         && (prev > prevprev)
                         && (prev * (1.0 - (bin_f) / (bin_count_f)) > mx)
                     {

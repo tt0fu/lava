@@ -4,6 +4,7 @@ use crate::{
     video::{Mesh, RenderContext, Texture},
 };
 
+use anyhow::{Result, anyhow};
 use std::{path::PathBuf, sync::Arc};
 use vulkano::{
     VulkanLibrary,
@@ -15,7 +16,7 @@ use vulkano::{
     descriptor_set::allocator::StandardDescriptorSetAllocator,
     device::{
         Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags,
-        physical::PhysicalDeviceType,
+        physical::{PhysicalDevice, PhysicalDeviceType},
     },
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
     memory::allocator::{MemoryTypeFilter, StandardMemoryAllocator},
@@ -39,9 +40,9 @@ pub struct VideoEngine {
 }
 
 impl VideoEngine {
-    pub fn new(event_loop: &EventLoop, config: &Config, config_path: &PathBuf) -> Self {
-        let library = VulkanLibrary::new().unwrap();
-        let required_extensions = Surface::required_extensions(event_loop).unwrap();
+    pub fn new(event_loop: &EventLoop<()>, config: &Config, config_path: &PathBuf) -> Result<Self> {
+        let library = VulkanLibrary::new()?;
+        let required_extensions = Surface::required_extensions(event_loop)?;
         let instance = Instance::new(
             library,
             InstanceCreateInfo {
@@ -49,36 +50,49 @@ impl VideoEngine {
                 enabled_extensions: required_extensions,
                 ..Default::default()
             },
-        )
-        .unwrap();
+        )?;
 
         let device_extensions = DeviceExtensions {
             khr_swapchain: true,
             ..DeviceExtensions::empty()
         };
-        let (physical_device, queue_family_index) = instance
-            .enumerate_physical_devices()
-            .unwrap()
-            .filter(|p| p.supported_extensions().contains(&device_extensions))
-            .filter_map(|p| {
-                p.queue_family_properties()
-                    .iter()
-                    .enumerate()
-                    .position(|(i, q)| {
-                        q.queue_flags.intersects(QueueFlags::GRAPHICS)
-                            && p.presentation_support(i as u32, event_loop).unwrap()
-                    })
-                    .map(|i| (p, i as u32))
-            })
-            .min_by_key(|(p, _)| match p.properties().device_type {
-                PhysicalDeviceType::DiscreteGpu => 0,
-                PhysicalDeviceType::IntegratedGpu => 1,
-                PhysicalDeviceType::VirtualGpu => 2,
-                PhysicalDeviceType::Cpu => 3,
-                PhysicalDeviceType::Other => 4,
-                _ => 5,
-            })
-            .unwrap();
+        let (physical_device, queue_family_index, _) = {
+            let mut best: Option<(Arc<PhysicalDevice>, u32, u32)> = None;
+
+            for p in instance.enumerate_physical_devices()? {
+                if !p.supported_extensions().contains(&device_extensions) {
+                    continue;
+                }
+
+                let mut found_index = None;
+                for (i, q) in p.queue_family_properties().iter().enumerate() {
+                    if q.queue_flags.intersects(QueueFlags::GRAPHICS)
+                        && p.presentation_support(i as u32, event_loop)?
+                    {
+                        found_index = Some(i as u32);
+                        break;
+                    }
+                }
+
+                if let Some(idx) = found_index {
+                    let key = match p.properties().device_type {
+                        PhysicalDeviceType::DiscreteGpu => 0,
+                        PhysicalDeviceType::IntegratedGpu => 1,
+                        PhysicalDeviceType::VirtualGpu => 2,
+                        PhysicalDeviceType::Cpu => 3,
+                        PhysicalDeviceType::Other => 4,
+                        _ => 5,
+                    };
+
+                    best = Some(match best {
+                        None => (p, idx, key),
+                        Some((_, _, best_key)) if key < best_key => (p, idx, key),
+                        Some(b) => b,
+                    });
+                }
+            }
+            best.ok_or(anyhow!("No suitable device found"))?
+        };
 
         println!(
             "Using video device: {} (type: {:?})",
@@ -96,10 +110,9 @@ impl VideoEngine {
                 }],
                 ..Default::default()
             },
-        )
-        .unwrap();
+        )?;
 
-        let queue = queues.next().unwrap();
+        let queue = queues.next().ok_or(anyhow!("No device queues found"))?;
 
         let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
         let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(
@@ -131,7 +144,7 @@ impl VideoEngine {
             },
         );
 
-        let mesh = Mesh::new(&memory_allocator);
+        let mesh = Mesh::new(&memory_allocator)?;
 
         let texture = match &config.image_path {
             Some(path) => Some(Texture::new(
@@ -139,12 +152,16 @@ impl VideoEngine {
                 &queue,
                 &memory_allocator,
                 &command_buffer_allocator,
-                &config_path.to_path_buf().parent().unwrap().join(path),
-            )),
+                &config_path
+                    .to_path_buf()
+                    .parent()
+                    .ok_or(anyhow!("The config path is a path to the root directory"))?
+                    .join(path),
+            )?),
             None => None,
         };
 
-        Self {
+        Ok(Self {
             instance,
             device,
             queue,
@@ -156,36 +173,49 @@ impl VideoEngine {
             mesh,
             texture,
             context: None,
-        }
+        })
     }
 
-    pub fn init(&mut self, window: &Arc<Box<dyn Window>>, config: &Config) {
+    pub fn init(&mut self, window: &Arc<Window>, config: &Config) -> Result<()> {
         self.context = Some(RenderContext::new(
             &self.instance,
             &self.device,
             &self.memory_allocator,
             &window,
             &config,
-        ));
+        )?);
+        Ok(())
     }
 
-    pub fn resize(&mut self) {
-        self.context.as_mut().unwrap().recreate_swapchain = true;
+    pub fn resize(&mut self) -> Result<()> {
+        self.context
+            .as_mut()
+            .ok_or(anyhow!("No render context has been created yet"))?
+            .recreate_swapchain = true;
+        Ok(())
     }
 
-    pub fn redraw(&mut self, window_size: &PhysicalSize<u32>, audio_data: &AudioData) {
-        self.context.as_mut().unwrap().redraw(
-            &self.device,
-            &self.queue,
-            &self.memory_allocator,
-            &self.descriptor_set_allocator,
-            &self.command_buffer_allocator,
-            &self.uniform_buffer_allocator,
-            &self.storage_buffer_allocator,
-            &self.mesh,
-            &self.texture,
-            &window_size,
-            &audio_data,
-        );
+    pub fn redraw(
+        &mut self,
+        window_size: &PhysicalSize<u32>,
+        audio_data: &AudioData,
+    ) -> Result<()> {
+        self.context
+            .as_mut()
+            .ok_or(anyhow!("No render context has been created yet"))?
+            .redraw(
+                &self.device,
+                &self.queue,
+                &self.memory_allocator,
+                &self.descriptor_set_allocator,
+                &self.command_buffer_allocator,
+                &self.uniform_buffer_allocator,
+                &self.storage_buffer_allocator,
+                &self.mesh,
+                &self.texture,
+                &window_size,
+                &audio_data,
+            )?;
+        Ok(())
     }
 }

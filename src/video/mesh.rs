@@ -10,10 +10,11 @@ pub struct Mesh {
     pub uvs_buffer: Subbuffer<[Uv]>,
     pub index_buffer: Subbuffer<[u16]>,
 }
+use anyhow::Result;
 
 impl Mesh {
-    pub fn new(memory_allocator: &Arc<StandardMemoryAllocator>) -> Self {
-        Self {
+    pub fn new(memory_allocator: &Arc<StandardMemoryAllocator>) -> Result<Self> {
+        Ok(Self {
             vertex_buffer: Buffer::from_iter(
                 memory_allocator.clone(),
                 BufferCreateInfo {
@@ -26,8 +27,7 @@ impl Mesh {
                     ..Default::default()
                 },
                 POSITIONS,
-            )
-            .unwrap(),
+            )?,
             index_buffer: Buffer::from_iter(
                 memory_allocator.clone(),
                 BufferCreateInfo {
@@ -40,8 +40,7 @@ impl Mesh {
                     ..Default::default()
                 },
                 INDICES,
-            )
-            .unwrap(),
+            )?,
             uvs_buffer: Buffer::from_iter(
                 memory_allocator.clone(),
                 BufferCreateInfo {
@@ -54,8 +53,7 @@ impl Mesh {
                     ..Default::default()
                 },
                 UVS,
-            )
-            .unwrap(),
-        }
+            )?,
+        })
     }
 }

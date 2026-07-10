@@ -1,8 +1,9 @@
 use super::CircularBuffer;
 
+use anyhow::Result;
 use cpal::{
     BufferSize::Fixed,
-    BuildStreamError, SampleFormat, StreamConfig, SupportedBufferSize, default_host,
+    ErrorKind, SampleFormat, StreamConfig, SupportedBufferSize, default_host,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use std::sync::{Arc, Mutex};
@@ -18,15 +19,12 @@ impl Stream {
         channels: u16,
         fetch_buffer_size: u32,
         store_buffer_size: usize,
-    ) -> Self {
+    ) -> Result<Self> {
         let device = default_host()
             .default_input_device()
             .expect("No audio input devices available");
 
-        println!(
-            "Using audio device: {}",
-            device.description().unwrap().name()
-        );
+        println!("Using audio device: {}", device);
 
         let config = StreamConfig {
             channels,
@@ -38,7 +36,7 @@ impl Stream {
 
         let stream = {
             let res = device.build_input_stream(
-                &config,
+                config,
                 move |data: &[f32], _| {
                     let mut buf = buffer_clone
                         .lock()
@@ -53,15 +51,14 @@ impl Stream {
             match res {
                 Ok(stream) => stream,
                 Err(err) => {
-                    if err == BuildStreamError::StreamConfigNotSupported {
+                    if err.kind() == ErrorKind::UnsupportedConfig {
                         eprintln!(
                             "Unsupported audio stream config: channels={}, fetch_buffer_size={}, sample_rate={}.",
                             channels, fetch_buffer_size, sample_rate
                         );
                         eprintln!("Supported audio stream configs:");
                         for config in device
-                            .supported_input_configs()
-                            .unwrap()
+                            .supported_input_configs()?
                             .filter(|config| config.sample_format() == SampleFormat::F32)
                         {
                             eprintln!(
@@ -84,10 +81,10 @@ impl Stream {
 
         stream.play().expect("Error playing audio stream");
 
-        Self {
+        Ok(Self {
             buffer,
             _stream: stream,
-        }
+        })
     }
 
     pub fn get_samples(&mut self) -> Vec<f32> {

@@ -17,22 +17,21 @@ pub struct GlobalWrites {
     pub stabilization: WriteDescriptorSet,
     pub dft: WriteDescriptorSet,
     pub bass: WriteDescriptorSet,
-    pub image: Option<[WriteDescriptorSet; 2]>,
+    pub image: Option<(WriteDescriptorSet, WriteDescriptorSet)>,
 }
-
+use anyhow::Result;
 impl GlobalWrites {
     pub fn new(
         uniform_buffer_allocator: &SubbufferAllocator,
         storage_buffer_allocator: &SubbufferAllocator,
         texture: &Option<Texture>,
         audio_data: &AudioData,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        Ok(Self {
             samples: {
                 let buffer: Subbuffer<Samples> = storage_buffer_allocator
-                    .allocate_unsized(audio_data.samples.data.len() as u64)
-                    .unwrap();
-                let mut guard = buffer.write().unwrap();
+                    .allocate_unsized(audio_data.samples.data.len() as u64)?;
+                let mut guard = buffer.write()?;
                 guard.samples_start = audio_data.samples.start as u32;
                 guard.samples_data.copy_from_slice(&audio_data.samples.data);
                 drop(guard);
@@ -42,12 +41,11 @@ impl GlobalWrites {
                 &uniform_buffer_allocator,
                 3,
                 audio_data.stabilization.clone().into(),
-            ),
+            )?,
             dft: {
-                let buffer: Subbuffer<Dft> = storage_buffer_allocator
-                    .allocate_unsized(audio_data.dft.len() as u64)
-                    .unwrap();
-                let mut guard = buffer.write().unwrap();
+                let buffer: Subbuffer<Dft> =
+                    storage_buffer_allocator.allocate_unsized(audio_data.dft.len() as u64)?;
+                let mut guard = buffer.write()?;
                 guard.dft.copy_from_slice(
                     &audio_data
                         .dft
@@ -58,14 +56,18 @@ impl GlobalWrites {
                 drop(guard);
                 WriteDescriptorSet::buffer(4, buffer)
             },
-            bass: create_write_descriptor_set::<Bass>(&uniform_buffer_allocator, 5, audio_data.bass.clone().into()),
+            bass: create_write_descriptor_set::<Bass>(
+                &uniform_buffer_allocator,
+                5,
+                audio_data.bass.clone().into(),
+            )?,
             image: match texture {
-                Some(tex) => Some([
+                Some(tex) => Some((
                     WriteDescriptorSet::sampler(6, tex.sampler.clone()),
                     WriteDescriptorSet::image_view(7, tex.image_view.clone()),
-                ]),
+                )),
                 None => None,
             },
-        }
+        })
     }
 }

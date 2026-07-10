@@ -28,8 +28,18 @@ impl FrameTimer {
         let len = self.frame_times.len();
         let sum = self.frame_times.iter().sum::<Duration>();
         let avg = sum.div_f64(len as f64);
-        let min = self.frame_times.iter().min().unwrap().clone();
-        let max = self.frame_times.iter().max().unwrap().clone();
+        let min = self
+            .frame_times
+            .iter()
+            .min()
+            .unwrap_or(&Duration::ZERO)
+            .clone();
+        let max = self
+            .frame_times
+            .iter()
+            .max()
+            .unwrap_or(&Duration::ZERO)
+            .clone();
         (len, avg, min, max)
     }
 

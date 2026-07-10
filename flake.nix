@@ -12,31 +12,18 @@
     {
       nixpkgs,
       flake-utils,
-      rust-overlay,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        overlays = [ (import rust-overlay) ];
-        pkgs = import nixpkgs { inherit system overlays; };
-
-        rustToolchain = (
-          pkgs.rust-bin.stable.latest.default.override {
-            extensions = [
-              "clippy"
-              "rust-analyzer"
-              "rust-docs"
-              "rust-src"
-            ];
-            targets = [
-              "x86_64-unknown-linux-gnu"
-            ];
-          }
-        );
+        pkgs = import nixpkgs { inherit system; };
 
         packages = with pkgs; [
-          rustToolchain
+          cargo
+          rustc
+          rust-analyzer
+          rustfmt
           gdb
           cargo-expand
 
@@ -71,7 +58,9 @@
       {
         devShells = {
           default = pkgs.mkShell {
+            inherit packages;
             buildInputs = packages;
+            nativeBuildInputs = packages;
 
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath packages;
             PKG_CONFIG_PATH = "${pkgs.alsa-lib.dev}/lib/pkgconfig:${pkgs.jack2.dev}/lib/pkgconfig";

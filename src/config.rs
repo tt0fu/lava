@@ -1,6 +1,7 @@
 use crate::video::{
     Panel, PanelMaterial::Waveform, PanelTransform, shader_types::WaveformParameters,
 };
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -54,12 +55,13 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn from_jsonc(path: &Path) -> Self {
-        serde_json::from_value(jsonc::parse_jsonc(&fs::read_to_string(path).unwrap()).unwrap())
-            .unwrap()
+    pub fn from_jsonc(path: &Path) -> Result<Self> {
+        Ok(serde_json::from_value(jsonc::parse_jsonc(
+            &fs::read_to_string(path)?,
+        )?)?)
     }
 
-    pub fn to_jsonc(&self) -> String {
-        serde_json::to_string(self).unwrap()
+    pub fn to_jsonc(&self) -> Result<String> {
+        Ok(serde_json::to_string(self)?)
     }
 }

@@ -11,6 +11,7 @@ use crate::{
     },
 };
 
+use anyhow::{Result, anyhow};
 use glam::Vec2;
 use std::sync::Arc;
 use vulkano::{
@@ -52,9 +53,13 @@ pub struct Panel {
 }
 
 impl Panel {
-    pub fn get_shader_entry_point(&self, device: &Arc<Device>, config: &Config) -> EntryPoint {
+    pub fn get_fragment_shader_entry_point(
+        &self,
+        device: &Arc<Device>,
+        config: &Config,
+    ) -> Result<EntryPoint> {
         let device_clone = device.clone();
-        match self.material {
+        Ok(match self.material {
             PanelMaterial::Waveform(_) => shaders::load_waveform(device_clone),
             PanelMaterial::Spectrogram(_) => shaders::load_spectrogram(device_clone),
             PanelMaterial::SimplePattern(_) => shaders::load_simple_pattern(device_clone),
@@ -62,8 +67,7 @@ impl Panel {
             PanelMaterial::Image(_) => shaders::load_image(device_clone),
             PanelMaterial::GrayVenueGridnode(_) => shaders::load_gray_venue_gridnode(device_clone),
             PanelMaterial::NeonSymphonyHnode(_) => shaders::load_neon_symphony_hnode(device_clone),
-        }
-        .unwrap()
+        }?
         .specialize(
             [
                 (0, (config.sample_count as u32).into()),
@@ -72,18 +76,19 @@ impl Panel {
             ]
             .into_iter()
             .collect(),
-        )
-        .unwrap()
+        )?
         .entry_point("main")
-        .unwrap()
+        .ok_or(anyhow!(
+            "The fragment shader has no or multiple 'main' entry points"
+        ))?)
     }
 
     pub fn get_write_descriptor_sets(
         &self,
         uniform_buffer_allocator: &SubbufferAllocator,
         screen_size: Vec2,
-        global_writes: GlobalWrites,
-    ) -> Vec<WriteDescriptorSet> {
+        global_writes: &GlobalWrites,
+    ) -> Result<Vec<WriteDescriptorSet>> {
         let transform_write = {
             let transform = self.transform.get_matrix(screen_size);
             create_write_descriptor_set(
@@ -96,7 +101,7 @@ impl Panel {
                         transform.z_axis.to_array().into(),
                     ],
                 },
-            )
+            )?
         };
 
         let aspect_ratio_write = create_write_descriptor_set(
@@ -106,85 +111,95 @@ impl Panel {
                 aspect_ratio: ((screen_size.x / screen_size.y) * self.transform.get_aspect_ratio())
                     .into(),
             },
-        );
+        )?;
 
-        match &self.material {
+        let image_writes = global_writes.image.clone().ok_or(anyhow!(
+            "Trying to access an image based shader with no configured image path"
+        ));
+
+        Ok(match &self.material {
             PanelMaterial::Waveform(parameters) => vec![
                 transform_write,
                 aspect_ratio_write,
-                global_writes.samples,
-                global_writes.stabilization,
-                global_writes.bass,
+                global_writes.samples.clone(),
+                global_writes.stabilization.clone(),
+                global_writes.bass.clone(),
                 create_write_descriptor_set::<shaders::WaveformParameters>(
                     &uniform_buffer_allocator,
                     10,
                     parameters.clone().into(),
-                ),
+                )?,
             ],
             PanelMaterial::Spectrogram(parameters) => vec![
                 transform_write,
                 aspect_ratio_write,
-                global_writes.dft,
-                global_writes.bass,
+                global_writes.dft.clone(),
+                global_writes.bass.clone(),
                 create_write_descriptor_set::<shaders::SpectrogramParameters>(
                     &uniform_buffer_allocator,
                     10,
                     parameters.clone().into(),
-                ),
+                )?,
             ],
             PanelMaterial::SimplePattern(parameters) => vec![
                 transform_write,
                 aspect_ratio_write,
-                global_writes.bass,
+                global_writes.bass.clone(),
                 create_write_descriptor_set::<shaders::SimplePatternParameters>(
                     &uniform_buffer_allocator,
                     10,
                     parameters.clone().into(),
-                ),
+                )?,
             ],
-            PanelMaterial::MaskedPattern(parameters) => vec![
-                transform_write,
-                aspect_ratio_write,
-                global_writes.bass,
-                global_writes.image.clone().unwrap()[0].clone(),
-                global_writes.image.clone().unwrap()[1].clone(),
-                create_write_descriptor_set::<shaders::MaskedPatternParameters>(
-                    &uniform_buffer_allocator,
-                    10,
-                    parameters.clone().into(),
-                ),
-            ],
-            PanelMaterial::Image(parameters) => vec![
-                transform_write,
-                global_writes.bass,
-                global_writes.image.clone().unwrap()[0].clone(),
-                global_writes.image.clone().unwrap()[1].clone(),
-                create_write_descriptor_set::<shaders::ImageParameters>(
-                    &uniform_buffer_allocator,
-                    10,
-                    parameters.clone().into(),
-                ),
-            ],
+            PanelMaterial::MaskedPattern(parameters) => {
+                let (sampler, view) = image_writes?;
+                vec![
+                    transform_write,
+                    aspect_ratio_write,
+                    global_writes.bass.clone(),
+                    sampler,
+                    view,
+                    create_write_descriptor_set::<shaders::MaskedPatternParameters>(
+                        &uniform_buffer_allocator,
+                        10,
+                        parameters.clone().into(),
+                    )?,
+                ]
+            }
+            PanelMaterial::Image(parameters) => {
+                let (sampler, view) = image_writes?;
+                vec![
+                    transform_write,
+                    global_writes.bass.clone(),
+                    sampler,
+                    view,
+                    create_write_descriptor_set::<shaders::ImageParameters>(
+                        &uniform_buffer_allocator,
+                        10,
+                        parameters.clone().into(),
+                    )?,
+                ]
+            }
             PanelMaterial::GrayVenueGridnode(parameters) => vec![
                 transform_write,
-                global_writes.dft,
-                global_writes.bass,
+                global_writes.dft.clone(),
+                global_writes.bass.clone(),
                 create_write_descriptor_set::<shaders::GrayVenueGridnodeParameters>(
                     &uniform_buffer_allocator,
                     10,
                     parameters.clone().into(),
-                ),
+                )?,
             ],
             PanelMaterial::NeonSymphonyHnode(parameters) => vec![
                 transform_write,
-                global_writes.dft,
-                global_writes.bass,
+                global_writes.dft.clone(),
+                global_writes.bass.clone(),
                 create_write_descriptor_set::<shaders::NeonSymphonyHnodeParameters>(
                     &uniform_buffer_allocator,
                     10,
                     parameters.clone().into(),
-                ),
+                )?,
             ],
-        }
+        })
     }
 }

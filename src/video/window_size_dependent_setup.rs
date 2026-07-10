@@ -1,4 +1,5 @@
 use super::{Position, Uv};
+use anyhow::{Result, anyhow};
 use std::sync::Arc;
 use vulkano::{
     device::{Device, DeviceOwned},
@@ -30,10 +31,8 @@ fn create_pipeline(
     render_pass: &Arc<RenderPass>,
     vs: &EntryPoint,
     fs: &EntryPoint,
-) -> Arc<GraphicsPipeline> {
-    let vertex_input_state = [Position::per_vertex(), Uv::per_vertex()]
-        .definition(vs)
-        .unwrap();
+) -> Result<Arc<GraphicsPipeline>> {
+    let vertex_input_state = [Position::per_vertex(), Uv::per_vertex()].definition(vs)?;
     let stages = [
         PipelineShaderStageCreateInfo::new(vs.clone()),
         PipelineShaderStageCreateInfo::new(fs.clone()),
@@ -41,13 +40,12 @@ fn create_pipeline(
     let layout = PipelineLayout::new(
         device.clone(),
         PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages)
-            .into_pipeline_layout_create_info(device.clone())
-            .unwrap(),
-    )
-    .unwrap();
-    let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
+            .into_pipeline_layout_create_info(device.clone())?,
+    )?;
+    let subpass = Subpass::from(render_pass.clone(), 0)
+        .ok_or(anyhow!("No subpass found in the render pass"))?;
 
-    GraphicsPipeline::new(
+    Ok(GraphicsPipeline::new(
         device.clone(),
         None,
         GraphicsPipelineCreateInfo {
@@ -80,8 +78,7 @@ fn create_pipeline(
             subpass: Some(subpass.into()),
             ..GraphicsPipelineCreateInfo::layout(layout)
         },
-    )
-    .unwrap()
+    )?)
 }
 
 pub fn window_size_dependent_setup(
@@ -89,47 +86,45 @@ pub fn window_size_dependent_setup(
     images: &[Arc<Image>],
     render_pass: &Arc<RenderPass>,
     memory_allocator: &Arc<StandardMemoryAllocator>,
-    vs: &EntryPoint,
-    fs: &Vec<EntryPoint>,
-) -> (Vec<Arc<Framebuffer>>, Vec<Arc<GraphicsPipeline>>) {
+    vertex_shader: &EntryPoint,
+    fragment_shaders: &Vec<EntryPoint>,
+) -> Result<(Vec<Arc<Framebuffer>>, Vec<Arc<GraphicsPipeline>>)> {
     let device = memory_allocator.device();
 
-    let depth_buffer = ImageView::new_default(
-        Image::new(
-            memory_allocator.clone(),
-            ImageCreateInfo {
-                image_type: ImageType::Dim2d,
-                format: Format::D16_UNORM,
-                extent: images[0].extent(),
-                usage: ImageUsage::DEPTH_STENCIL_ATTACHMENT | ImageUsage::TRANSIENT_ATTACHMENT,
+    let depth_buffer = ImageView::new_default(Image::new(
+        memory_allocator.clone(),
+        ImageCreateInfo {
+            image_type: ImageType::Dim2d,
+            format: Format::D16_UNORM,
+            extent: images[0].extent(),
+            usage: ImageUsage::DEPTH_STENCIL_ATTACHMENT | ImageUsage::TRANSIENT_ATTACHMENT,
+            ..Default::default()
+        },
+        AllocationCreateInfo::default(),
+    )?)?;
+
+    let mut framebuffers = Vec::with_capacity(images.len());
+    for image in images {
+        let view = ImageView::new_default(image.clone())?;
+
+        framebuffers.push(Framebuffer::new(
+            render_pass.clone(),
+            FramebufferCreateInfo {
+                attachments: vec![view, depth_buffer.clone()],
                 ..Default::default()
             },
-            AllocationCreateInfo::default(),
-        )
-        .unwrap(),
-    )
-    .unwrap();
+        )?)
+    }
 
-    let framebuffers = images
-        .iter()
-        .map(|image| {
-            let view = ImageView::new_default(image.clone()).unwrap();
-
-            Framebuffer::new(
-                render_pass.clone(),
-                FramebufferCreateInfo {
-                    attachments: vec![view, depth_buffer.clone()],
-                    ..Default::default()
-                },
-            )
-            .unwrap()
-        })
-        .collect::<Vec<_>>();
-
-    (
-        framebuffers,
-        fs.iter()
-            .map(|fs| create_pipeline(device, window_size, render_pass, vs, fs))
-            .collect(),
-    )
+    let mut pipelines = Vec::with_capacity(fragment_shaders.len());
+    for shader in fragment_shaders {
+        pipelines.push(create_pipeline(
+            device,
+            window_size,
+            render_pass,
+            vertex_shader,
+            shader,
+        )?);
+    }
+    Ok((framebuffers, pipelines))
 }
