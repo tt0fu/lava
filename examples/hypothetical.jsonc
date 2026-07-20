@@ -1,0 +1,42 @@
+{
+  "settings": {},
+  "custom_shaders": {
+    "my_custom_shader": {
+      "source": "./my_custom_shader.glsl",
+      "parameters": [
+        {
+          "name": "foo",
+          "type": "int",
+          "default": 3,
+        },
+        {
+          "name": "bar",
+          "type": "float",
+          "default": 2.0,
+        },
+      ],
+    },
+  },
+  "transforms": {
+    "left_screen": {
+      "left": { "pixels": [-215.0, 215.0] }, // top_left, left, bottom_left, top_right, right, bottom_right, top, bottom
+      "scale": { "screen": [0.5, 0.5] },
+      "rotation": 45.0,
+      "order": 2,
+    },
+  },
+  "materials": {
+    "waveform_slim": {
+      "shader": "waveform",
+      "parameters": {
+        "width": 0.5,
+      },
+    },
+  },
+  "panels": [
+    {
+      "transform": "left_screen", // or just the attrset for the transform
+      "material": "waveform_slim",
+    },
+  ],
+}

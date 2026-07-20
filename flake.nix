@@ -37,6 +37,7 @@
           jack2
 
           shaderc
+          shader-slang
           glsl_analyzer
           spirv-tools
           vulkan-loader

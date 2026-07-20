@@ -1,36 +1,14 @@
 vulkano_shaders::shader! {
+    lang: "glsl",
+    root_path_env: "CARGO_MANIFEST_DIR",
     shaders: {
         vertex: {
             ty: "vertex",
             path: "src/video/shaders/vertex.glsl",
         },
-        waveform: {
+        fragment: {
             ty: "fragment",
-            path: "src/video/shaders/waveform.glsl",
+            path: "src/video/shaders/fragment.glsl",
         },
-        simple_pattern: {
-            ty: "fragment",
-            path: "src/video/shaders/simple_pattern.glsl",
-        },
-        masked_pattern: {
-            ty: "fragment",
-            path: "src/video/shaders/masked_pattern.glsl",
-        },
-        spectrogram: {
-            ty: "fragment",
-            path: "src/video/shaders/spectrogram.glsl",
-        },
-        gray_venue_gridnode: {
-            ty: "fragment",
-            path: "src/video/shaders/gray_venue_gridnode.glsl",
-        },
-        neon_symphony_hnode: {
-            ty: "fragment",
-            path: "src/video/shaders/neon_symphony_hnode.glsl",
-        },
-        image: {
-            ty: "fragment",
-            path: "src/video/shaders/image.glsl",
-        }
     },
 }

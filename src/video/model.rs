@@ -1,39 +1,29 @@
-use vulkano::{buffer::BufferContents, pipeline::graphics::vertex_input::Vertex};
+use vulkano_macros::{BufferContents, Vertex};
 
-#[derive(BufferContents, Vertex)]
+#[derive(Clone, Copy, BufferContents, Vertex)]
 #[repr(C)]
-pub struct Position {
+pub struct MyVertex {
     #[format(R32G32_SFLOAT)]
     position: [f32; 2],
-}
-
-pub const POSITIONS: [Position; 4] = [
-    Position {
-        position: [-1.0, -1.0],
-    },
-    Position {
-        position: [-1.0, 1.0],
-    },
-    Position {
-        position: [1.0, -1.0],
-    },
-    Position {
-        position: [1.0, 1.0],
-    },
-];
-
-#[derive(BufferContents, Vertex)]
-#[repr(C)]
-pub struct Uv {
     #[format(R32G32_SFLOAT)]
     uv: [f32; 2],
 }
 
-pub const UVS: [Uv; 4] = [
-    Uv { uv: [0.0, 0.0] },
-    Uv { uv: [0.0, 1.0] },
-    Uv { uv: [1.0, 0.0] },
-    Uv { uv: [1.0, 1.0] },
+pub const VERTICES: [MyVertex; 4] = [
+    MyVertex {
+        position: [-1.0, -1.0],
+        uv: [0.0, 0.0],
+    },
+    MyVertex {
+        position: [-1.0, 1.0],
+        uv: [0.0, 1.0],
+    },
+    MyVertex {
+        position: [1.0, -1.0],
+        uv: [1.0, 0.0],
+    },
+    MyVertex {
+        position: [1.0, 1.0],
+        uv: [1.0, 1.0],
+    },
 ];
-
-pub const INDICES: [u16; 6] = [0, 1, 2, 1, 2, 3];

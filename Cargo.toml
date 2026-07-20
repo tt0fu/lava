@@ -14,11 +14,11 @@ cpal = "0"
 glam = { version = "0", features = ["serde"] }
 image = "0"
 
-vulkano = {version = "0", features = ["serde"]}
-vulkano-macros = "0"
-vulkano-shaders = "0"
-vulkano-util = "0"
-vulkano-taskgraph = "0"
+vulkano = { git = "https://github.com/vulkano-rs/vulkano", branch = "master", package = "vulkano" }
+vulkano-macros = { git = "https://github.com/vulkano-rs/vulkano", branch = "master", package = "vulkano-macros" }
+vulkano-shaders = { git = "https://github.com/vulkano-rs/vulkano", branch = "master", package = "vulkano-shaders" }
+vulkano-util = { git = "https://github.com/vulkano-rs/vulkano", branch = "master", package = "vulkano-util" }
+vulkano-taskgraph = { git = "https://github.com/vulkano-rs/vulkano", branch = "master", package = "vulkano-taskgraph" }
 winit = { version = "0", features = ["serde"] }
 
 serde = { version = "1", features = ["derive"] }
