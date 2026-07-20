@@ -93,14 +93,22 @@ impl From<SimplePatternParameters> for shaders::SimplePatternParameters {
 #[serde(default)]
 pub struct SpectrogramParameters {
     pub pattern: Pattern,
+    min_frequency: f32,
+    max_frequency: f32,
     pub gain: f32,
+    pub add: f32,
+    pub circular: bool,
 }
 
 impl Default for SpectrogramParameters {
     fn default() -> Self {
         Self {
             pattern: Default::default(),
+            min_frequency: 1.0,
+            max_frequency: 20000.0,
             gain: 1.5,
+            add: 0.0,
+            circular: false,
         }
     }
 }
@@ -109,7 +117,11 @@ impl From<SpectrogramParameters> for shaders::SpectrogramParameters {
     fn from(value: SpectrogramParameters) -> Self {
         Self {
             pattern: Padded(value.pattern.into()),
+            min_frequency: value.min_frequency,
+            max_frequency: value.max_frequency,
             gain: value.gain,
+            add: value.add,
+            circular: value.circular as u32,
         }
     }
 }

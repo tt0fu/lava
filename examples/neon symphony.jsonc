@@ -242,10 +242,13 @@
     {
       // Gobo 2
       "material": {
-        "type": "masked_pattern",
+        "type": "spectrogram",
         "parameters": {
-          "scale_min": 1.0,
-          "scale_max": 1.0,
+          "min_frequency": 15,
+          "max_frequency": 200,
+          "gain": 0.7,
+          "add": 0.1,
+          "circular": true,
         },
       },
       "transform": {

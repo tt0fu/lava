@@ -1,0 +1,22 @@
+{
+  "window_size": { "width": 1920, "height": 1080 },
+  "panels": [
+{
+  "material": {
+    "type": "spectrogram",
+    "parameters": {
+      "min_frequency": 15,
+      "max_frequency": 200,
+      "gain": 0.7,
+      "add": 0.1,
+      "circular": true,
+    },
+  },
+  "transform": {
+    "scale": { "type": "pixels", "value": [1000.0, 1000.0] },
+    "position": { "type": "screen", "value": [0.5, 0.5] },
+  },
+},
+  ],
+  "image_path": "./logo.png",
+}
