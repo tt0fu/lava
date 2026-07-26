@@ -1,5 +1,5 @@
-use glam::vec2;
-use std::{sync::Arc, time::Instant};
+use glam::vec3;
+use std::sync::Arc;
 use vulkano::{
     VulkanError, VulkanLibrary,
     buffer::{Buffer, BufferCreateInfo, BufferUsage},
@@ -7,7 +7,8 @@ use vulkano::{
         Device, DeviceCreateInfo, DeviceExtensions, DeviceFeatures, Queue, QueueCreateInfo,
         QueueFlags, physical::PhysicalDeviceType,
     },
-    image::ImageUsage,
+    format::Format,
+    image::{Image, ImageCreateInfo, ImageType, ImageUsage},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
     memory::allocator::{AllocationCreateInfo, DeviceLayout, MemoryTypeFilter},
     pipeline::graphics::viewport::Viewport,
@@ -30,40 +31,45 @@ use winit::{
 };
 
 use crate::{
+    audio::stream::Stream,
     stats::frame_timer::FrameTimer,
-    video::{render_task::RenderTask, shaders},
+    video::{
+        audio_settings::AudioSettings,
+        global_parameters::GlobalParameters,
+        material_parameters::{BandsParameters, SpectrogramParameters, WaveformParameters},
+        parameters::Layout,
+        render_task::RenderTask,
+        scene_data::{Material, Panel, SceneData},
+        shaders,
+        transform::Transform,
+    },
 };
 
 const MAX_FRAMES_IN_FLIGHT: u32 = 2;
 const MIN_SWAPCHAIN_IMAGES: u32 = MAX_FRAMES_IN_FLIGHT + 1;
 
-// pub enum BufferUpdateFrequency {
-//     EveryFrame,
-//     OnSwapchainRecreation,
-//     Once,
-// }
-
-// pub trait BufferEmitter {}
-
-// pub struct UpdateBuffer {
-//     pub buffer: Id<Buffer>,
-//     pub frequency: BufferUpdateFrequency,
-// }
-
 pub struct Buffers {
     pub global: Id<Buffer>,
+    pub waveform: Id<Buffer>,
+    pub dft: Id<Buffer>,
+
     pub transforms: Vec<Id<Buffer>>,
+    pub materials: Vec<Id<Buffer>>,
 }
 
 pub struct RenderContext {
     pub window: Arc<Window>,
     pub swapchain_id: Id<Swapchain>,
+    pub depth_buffer_id: Id<Image>,
     pub viewport: Viewport,
     pub recreate_swapchain: bool,
+    pub rewrite_transforms: bool,
     pub task_graph: ExecutableTaskGraph<Self>,
     pub virtual_swapchain_id: Id<Swapchain>,
+    pub virtual_depth_buffer_id: Id<Image>,
+    pub global_parameters: GlobalParameters,
+    pub stream: Arc<Stream>,
 
-    pub start_time: Instant,
     pub buffers: Buffers,
 }
 
@@ -73,20 +79,24 @@ pub struct App {
     pub queue: Arc<Queue>,
     pub resources: Arc<Resources>,
     pub flight_id: Id<Flight>,
+
+    pub scene_data: Arc<SceneData>,
+    pub audio_settings: Arc<AudioSettings>,
+
     pub rcx: Option<RenderContext>,
+
+    pub stream: Arc<Stream>,
 
     pub frame_timer: FrameTimer,
 }
 
 impl App {
-    pub fn new(event_loop: &EventLoop<()>) -> Self {
+    pub fn new(event_loop: &EventLoop<()>, audio_settings: AudioSettings) -> Self {
         let library = unsafe { VulkanLibrary::new() }.unwrap();
         let required_extensions = Surface::required_extensions(event_loop);
         let instance = Instance::new(
             &library,
             &InstanceCreateInfo {
-                // Enable enumerating devices that use non-conformant Vulkan implementations (e.g.,
-                // MoltenVK).
                 flags: InstanceCreateFlags::ENUMERATE_PORTABILITY,
                 enabled_extensions: &required_extensions,
                 ..Default::default()
@@ -140,6 +150,75 @@ impl App {
             },
         )
         .unwrap();
+
+        let scene_data = SceneData {
+            shaders: vec![
+                unsafe { shaders::load_simple(&device) }
+                    .unwrap()
+                    .specialize(&[(0, 48000u32.into())])
+                    .entry_point("main")
+                    .unwrap(),
+                unsafe { shaders::load_clock(&device) }
+                    .unwrap()
+                    .specialize(&[(0, 48000u32.into())])
+                    .entry_point("main")
+                    .unwrap(),
+                unsafe { shaders::load_waveform(&device) }
+                    .unwrap()
+                    .specialize(&[(0, 48000u32.into())])
+                    .entry_point("main")
+                    .unwrap(),
+                unsafe { shaders::load_spectrogram(&device) }
+                    .unwrap()
+                    .specialize(&[(0, 48000u32.into())])
+                    .entry_point("main")
+                    .unwrap(),
+                unsafe { shaders::load_bands(&device) }
+                    .unwrap()
+                    .specialize(&[(0, 48000u32.into())])
+                    .entry_point("main")
+                    .unwrap(),
+            ],
+            transforms: vec![Transform::FULLSCREEN],
+            materials: vec![
+                Material {
+                    shader_id: 2,
+                    parameters: Box::new(WaveformParameters {
+                        col: vec3(1.0, 1.0, 1.0),
+                        line_width: 50.0,
+                        gain: 1.5,
+                    }),
+                },
+                Material {
+                    shader_id: 3,
+                    parameters: Box::new(SpectrogramParameters {
+                        col: vec3(1.0, 1.0, 1.0),
+                        gain: 1.5,
+                    }),
+                },
+                Material {
+                    shader_id: 4,
+                    parameters: Box::new(BandsParameters {
+                        col: vec3(1.0, 1.0, 1.0),
+                        gain: 1.0,
+                    }),
+                },
+            ],
+            panels: vec![
+                Panel {
+                    transform_id: 0,
+                    material_id: 2,
+                    order: 0,
+                },
+                // Panel {
+                //     transform_id: 0,
+                //     material_id: 1,
+                //     order: 1,
+                // },
+            ],
+            background_color: vec3(0.0, 0.0, 0.0),
+        };
+
         let queue = queues.next().unwrap();
         let resources = Resources::new(
             &device,
@@ -151,13 +230,25 @@ impl App {
         .unwrap();
         let flight_id = resources.create_flight(MAX_FRAMES_IN_FLIGHT).unwrap();
         let rcx = None;
+        let stream = Arc::new(
+            Stream::new(
+                audio_settings.sample_rate,
+                audio_settings.channel_count,
+                512,
+                audio_settings.sample_count,
+            )
+            .unwrap(),
+        );
         App {
             instance,
             device,
             queue,
             resources,
             flight_id,
+            scene_data: Arc::new(scene_data),
+            audio_settings: Arc::new(audio_settings),
             rcx,
+            stream,
             frame_timer: FrameTimer::new(),
         }
     }
@@ -204,6 +295,18 @@ impl ApplicationHandler for App {
                 )
                 .unwrap()
         };
+        let depth_buffer_create_info = ImageCreateInfo {
+            image_type: ImageType::Dim2d,
+            format: Format::D16_UNORM,
+            extent: [window_size.width, window_size.height, 1],
+            usage: ImageUsage::DEPTH_STENCIL_ATTACHMENT | ImageUsage::TRANSIENT_ATTACHMENT,
+            ..Default::default()
+        };
+        let depth_buffer_id = self
+            .resources
+            .create_image(&depth_buffer_create_info, &AllocationCreateInfo::default())
+            .unwrap();
+
         let viewport = Viewport {
             offset: [0.0, 0.0],
             extent: window_size.into(),
@@ -216,6 +319,9 @@ impl ApplicationHandler for App {
             ..Default::default()
         });
         let virtual_framebuffer_id = task_graph.add_framebuffer();
+        let virtual_depth_buffer_id = task_graph.add_image(&depth_buffer_create_info);
+
+        let global_parameters = GlobalParameters::new();
 
         let buffer_create_info = BufferCreateInfo {
             usage: BufferUsage::STORAGE_BUFFER,
@@ -223,7 +329,7 @@ impl ApplicationHandler for App {
         };
         let allocation_create_info = AllocationCreateInfo {
             memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
-                | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                | MemoryTypeFilter::HOST_RANDOM_ACCESS,
             ..Default::default()
         };
         let buffers = Buffers {
@@ -232,20 +338,115 @@ impl ApplicationHandler for App {
                 .create_buffer(
                     &buffer_create_info,
                     &allocation_create_info,
-                    DeviceLayout::new_sized::<shaders::GlobalParams>(),
+                    global_parameters.layout(),
                 )
                 .unwrap(),
+            waveform: self
+                .resources
+                .create_buffer(
+                    &buffer_create_info,
+                    &allocation_create_info,
+                    self.stream.layout(),
+                )
+                .unwrap(),
+            dft: self
+                .resources
+                .create_buffer(
+                    &buffer_create_info,
+                    &allocation_create_info,
+                    DeviceLayout::new_unsized::<shaders::Dft>(self.audio_settings.bin_count as u64)
+                        .unwrap(),
+                )
+                .unwrap(),
+            transforms: self
+                .scene_data
+                .transforms
+                .iter()
+                .map(|_| {
+                    self.resources
+                        .create_buffer(
+                            &buffer_create_info,
+                            &allocation_create_info,
+                            DeviceLayout::new_sized::<shaders::Transform>(),
+                        )
+                        .unwrap()
+                })
+                .collect(),
+            materials: self
+                .scene_data
+                .materials
+                .iter()
+                .map(|m| {
+                    self.resources
+                        .create_buffer(
+                            &buffer_create_info,
+                            &allocation_create_info,
+                            m.parameters.layout(),
+                        )
+                        .unwrap()
+                })
+                .collect(),
         };
 
-        task_graph.add_host_buffer_access(buffers.global, HostAccessType::Write);
+        unsafe {
+            vulkano_taskgraph::execute(
+                &self.queue,
+                &self.resources,
+                self.flight_id,
+                |_cbf, tcx| {
+                    for i in 0..self.scene_data.materials.len() {
+                        self.scene_data.materials[i]
+                            .parameters
+                            .write(buffers.materials[i], tcx);
+                    }
+                    let guard = tcx.write_buffer::<shaders::Dft>(buffers.dft, ..);
+                    guard.bin_count = self.audio_settings.bin_count as u32;
+                    let periods = 2.0;
+                    guard.lowest_frequency = self.audio_settings.sample_rate as f32
+                        / self.audio_settings.sample_count as f32
+                        * periods;
+                    guard.exp_bins = (self.audio_settings.bin_count as f32
+                        / (self.audio_settings.sample_count as f32 / (2.0 * periods)).log2())
+                    .floor()
+                    .into();
 
-        let rectangle_node_id = task_graph
+                    Ok(())
+                },
+                buffers
+                    .materials
+                    .iter()
+                    .map(|&id| (id, HostAccessType::Write))
+                    .chain(std::iter::once((buffers.dft, HostAccessType::Write))),
+                [],
+                [],
+            )
+        }
+        .unwrap();
+
+        task_graph.add_host_buffer_access(buffers.global, HostAccessType::Write);
+        task_graph.add_host_buffer_access(buffers.waveform, HostAccessType::Write);
+        buffers
+            .transforms
+            .iter()
+            .for_each(|&id| task_graph.add_host_buffer_access(id, HostAccessType::Write));
+
+        let render_node_id = task_graph
             .create_task_node(
-                "Rectangle",
+                "render",
                 QueueFamilyType::Graphics,
-                RenderTask::new(self, virtual_swapchain_id),
+                RenderTask::new(self, virtual_swapchain_id, virtual_depth_buffer_id),
             )
             .framebuffer(virtual_framebuffer_id)
+            .depth_stencil_attachment(
+                virtual_depth_buffer_id,
+                AccessTypes::DEPTH_STENCIL_ATTACHMENT_READ
+                    | AccessTypes::DEPTH_STENCIL_ATTACHMENT_WRITE,
+                ImageLayoutType::Optimal,
+                &AttachmentInfo {
+                    clear: true,
+                    ..Default::default()
+                },
+            )
             .color_attachment(
                 virtual_swapchain_id.current_image_id(),
                 AccessTypes::COLOR_ATTACHMENT_WRITE,
@@ -265,28 +466,29 @@ impl ApplicationHandler for App {
             })
         }
         .unwrap();
-        let rectangle_node = task_graph.task_node_mut(rectangle_node_id).unwrap();
-        let subpass = rectangle_node.subpass().unwrap().clone();
-        rectangle_node
+        let render_node = task_graph.task_node_mut(render_node_id).unwrap();
+        let subpass = render_node.subpass().unwrap().clone();
+
+        render_node
             .task_mut()
             .downcast_mut::<RenderTask>()
             .unwrap()
-            .create_data(
-                self,
-                &subpass,
-                &buffers,
-                vec2(window_size.width as f32, window_size.height as f32),
-            );
+            .create_render_data(self, &subpass, &buffers);
         let recreate_swapchain = false;
+        let rewrite_transforms = true;
         self.rcx = Some(RenderContext {
             window,
             swapchain_id,
+            depth_buffer_id,
             viewport,
             recreate_swapchain,
+            rewrite_transforms,
             task_graph,
             virtual_swapchain_id,
+            virtual_depth_buffer_id,
             buffers,
-            start_time: Instant::now(),
+            global_parameters,
+            stream: self.stream.clone(),
         });
     }
 
@@ -299,7 +501,6 @@ impl ApplicationHandler for App {
         let rcx = self.rcx.as_mut().unwrap();
         match event {
             WindowEvent::CloseRequested => {
-                println!("TaskGraph execute call times:");
                 self.frame_timer.print_results();
                 event_loop.exit();
             }
@@ -307,10 +508,15 @@ impl ApplicationHandler for App {
                 rcx.recreate_swapchain = true;
             }
             WindowEvent::RedrawRequested => {
+                self.frame_timer.start_frame();
+
+                rcx.global_parameters.update();
+
                 let window_size = rcx.window.inner_size();
                 if window_size.width == 0 || window_size.height == 0 {
                     return;
                 }
+                rcx.rewrite_transforms = rcx.recreate_swapchain;
                 if rcx.recreate_swapchain {
                     rcx.swapchain_id = self
                         .resources
@@ -319,22 +525,40 @@ impl ApplicationHandler for App {
                             ..*create_info
                         })
                         .expect("failed to recreate swapchain");
+
+                    let mut batch = self.resources.create_deferred_batch();
+                    batch.destroy_image(rcx.depth_buffer_id);
+                    batch.enqueue();
+
+                    rcx.depth_buffer_id = self
+                        .resources
+                        .create_image(
+                            &ImageCreateInfo {
+                                image_type: ImageType::Dim2d,
+                                format: Format::D16_UNORM,
+                                extent: [window_size.width, window_size.height, 1],
+                                usage: ImageUsage::DEPTH_STENCIL_ATTACHMENT
+                                    | ImageUsage::TRANSIENT_ATTACHMENT,
+                                ..Default::default()
+                            },
+                            &AllocationCreateInfo::default(),
+                        )
+                        .unwrap();
                     rcx.viewport.extent = window_size.into();
                     rcx.recreate_swapchain = false;
                 }
+
                 let flight = self.resources.flight(self.flight_id);
                 flight.wait(None).unwrap();
-                let resource_map =
-                    resource_map!(&rcx.task_graph, rcx.virtual_swapchain_id => rcx.swapchain_id)
-                        .unwrap();
-                match {
-                    self.frame_timer.start_frame();
-                    let res = unsafe {
-                        rcx.task_graph
-                            .execute(resource_map, rcx, || rcx.window.pre_present_notify())
-                    };
-                    self.frame_timer.end_frame();
-                    res
+
+                let resource_map = resource_map!(&rcx.task_graph,
+                    rcx.virtual_swapchain_id => rcx.swapchain_id,
+                    rcx.virtual_depth_buffer_id => rcx.depth_buffer_id
+                )
+                .unwrap();
+                match unsafe {
+                    rcx.task_graph
+                        .execute(resource_map, rcx, || rcx.window.pre_present_notify())
                 } {
                     Ok(()) => {}
                     Err(ExecuteError::Swapchain {
@@ -344,9 +568,10 @@ impl ApplicationHandler for App {
                         rcx.recreate_swapchain = true;
                     }
                     Err(e) => {
-                        panic!("failed to execute next frame: {e:?}");
+                        panic!("Failed to execute next frame: {e:?}");
                     }
                 }
+                self.frame_timer.end_frame();
             }
             _ => {}
         }

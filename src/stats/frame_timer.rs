@@ -4,7 +4,7 @@ pub struct FrameTimer {
     start_time: Instant,
     frame_start: Instant,
     frame_times: Vec<Duration>,
-    sorted_cache: Option<Vec<Duration>>, // cached sorted times
+    sorted_cache: Option<Vec<Duration>>,
 }
 
 impl FrameTimer {
@@ -50,15 +50,7 @@ impl FrameTimer {
         sorted[index]
     }
 
-    /// Returns (95%, 99%, 99.9%) percentiles as a tuple.
-    pub fn percentiles(&mut self) -> (Duration, Duration, Duration) {
-        let p95 = self.percentile(0.95);
-        let p99 = self.percentile(0.99);
-        let p999 = self.percentile(0.999);
-        (p95, p99, p999)
-    }
-
-    /// (number of frames, average, min, max, 95%, 99%, 99.9%)
+    /// (number of frames, average, min, max, 90%, 99%, 99.9%)
     pub fn results(
         &mut self,
     ) -> (

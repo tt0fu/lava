@@ -1,21 +1,22 @@
-use glam::{Mat3, Vec2, vec2};
-// use serde::{Deserialize, Serialize};
 use std::f32::consts::PI;
+use vulkano::buffer::Buffer;
+use vulkano_taskgraph::{Id, TaskContext};
 
 use crate::video::shaders;
+use glam::{Mat3, Vec2, vec2};
 
-// #[derive(Clone, Copy, Serialize, Deserialize)]
-// #[serde(tag = "type", content = "value")]
-pub enum AnchorType {
-    Center,
-    Top,
-    Bottom,
-    Left,
-    Right,
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
+pub mod anchor {
+    use glam::{Vec2, vec2};
+
+    pub const CENTER: Vec2 = vec2(0.5, 0.5);
+    pub const TOP: Vec2 = vec2(0.5, 0.0);
+    pub const BOTTOM: Vec2 = vec2(0.5, 1.0);
+    pub const LEFT: Vec2 = vec2(0.0, 0.5);
+    pub const RIGHT: Vec2 = vec2(1.0, 0.5);
+    pub const TOP_LEFT: Vec2 = vec2(0.0, 0.0);
+    pub const TOP_RIGHT: Vec2 = vec2(1.0, 0.0);
+    pub const BOTTOM_LEFT: Vec2 = vec2(0.0, 1.0);
+    pub const BOTTOM_RIGHT: Vec2 = vec2(1.0, 1.0);
 }
 
 pub enum Unit {
@@ -29,17 +30,19 @@ pub struct Vector {
 }
 
 pub struct Transform {
-    pub anchor_type: AnchorType,
+    /// Position of the anchor point relative to the top left corner of the panel.
+    /// See the anchor module
+    pub anchor_type: Vec2,
     /// Position of the anchor point relative to the top left corner of the screen
-    pub anchor: Vector,
+    pub anchor_position: Vector,
     pub scale: Vector,
     pub rotation: f32,
 }
 
 impl Transform {
     pub const FULLSCREEN: Self = Self {
-        anchor_type: AnchorType::Center,
-        anchor: Vector {
+        anchor_type: anchor::CENTER,
+        anchor_position: Vector {
             value: vec2(0.5, 0.5),
             unit: Unit::Screen,
         },
@@ -58,28 +61,14 @@ impl Transform {
         }
     }
 
-    /// Get the screen-relative position of the center of the panel. Center of the screen is (0, 0), bottom right corner is (1, 1)
+    /// Get the normalized device coordinates of the center of the panel. Center of the screen is (0, 0), bottom right corner is (1, 1)
     pub fn get_translation(&self, resolution: Vec2) -> Vec2 {
-        let anchor_pixels = match self.anchor.unit {
-            Unit::Screen => self.anchor.value * resolution,
-            Unit::Pixels => self.anchor.value,
+        let anchor_pixels = match self.anchor_position.unit {
+            Unit::Screen => self.anchor_position.value * resolution,
+            Unit::Pixels => self.anchor_position.value,
         };
-
         let anchor_norm = 2.0 * anchor_pixels / resolution - Vec2::ONE;
-
-        let offset = self.get_scale(resolution)
-            * (match self.anchor_type {
-                AnchorType::Center => vec2(0.0, 0.0),
-                AnchorType::Top => vec2(0.0, 1.0),
-                AnchorType::Bottom => vec2(0.0, -1.0),
-                AnchorType::Left => vec2(1.0, 0.0),
-                AnchorType::Right => vec2(-1.0, 0.0),
-                AnchorType::TopLeft => vec2(1.0, 1.0),
-                AnchorType::TopRight => vec2(-1.0, 1.0),
-                AnchorType::BottomLeft => vec2(1.0, -1.0),
-                AnchorType::BottomRight => vec2(-1.0, -1.0),
-            });
-        anchor_norm + offset
+        anchor_norm + (Vec2::ONE - self.anchor_type * 2.0)
     }
 
     /// Get a vertex shader ready 2d transformation matrix:
@@ -106,10 +95,8 @@ impl Transform {
             ],
         }
     }
-}
 
-impl Default for Transform {
-    fn default() -> Self {
-        Self::FULLSCREEN
+    pub fn write(&self, resolution: Vec2, id: Id<Buffer>, tcx: &mut TaskContext<'_>) {
+        *tcx.write_buffer(id, ..) = self.get_buffer(resolution);
     }
 }
