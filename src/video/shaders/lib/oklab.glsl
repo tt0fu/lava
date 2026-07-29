@@ -1,5 +1,5 @@
-#ifndef OKLAB
-#define OKLAB
+#ifndef LIB_OKLAB
+#define LIB_OKLAB
 
 const mat3 fwdA = mat3(
         vec3(1.0, 1.0, 1.0),

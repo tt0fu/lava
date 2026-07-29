@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use vulkano::shader::{ShaderModule, SpecializedShaderModule};
+
 vulkano_shaders::shader! {
     lang: "glsl",
     root_path_env: "CARGO_MANIFEST_DIR",
@@ -35,4 +39,8 @@ vulkano_shaders::shader! {
             path: "src/video/shaders/bands.glsl",
         },
     },
+}
+
+pub fn specialize(module: &Arc<ShaderModule>) -> Arc<SpecializedShaderModule> {
+    module.specialize(&[(0, 48000u32.into())])
 }

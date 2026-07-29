@@ -4,14 +4,14 @@
 #include "lib/global.glsl"
 #include "lib/in_out.glsl"
 
-VKO_DECLARE_STORAGE_BUFFER(material, ClockParams {
+VKO_DECLARE_STORAGE_BUFFER(material_buffer, ClockParams {
     vec3 col;
     float speed;
 })
 
-#define material vko_buffer(material, material_buffer_id)
+#define MATERIAL vko_buffer(material_buffer, material_buffer_id)
 
 void main() {
-    float val = step(UV.x, fract(global.time * material.speed));
-    COLOR = vec4(material.col, val);
+    float val = step(UV.x, fract(GLOBAL.time * MATERIAL.speed));
+    COLOR = vec4(MATERIAL.col, val);
 }

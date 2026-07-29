@@ -1,11 +1,11 @@
-#ifndef WAVEFORM
-#define WAVEFORM
+#ifndef LIB_WAVEFORM
+#define LIB_WAVEFORM
 
 #include <vulkano.glsl>
 
 #include "consts.glsl"
 
-VKO_DECLARE_STORAGE_BUFFER(waveform, Waveform {
+VKO_DECLARE_STORAGE_BUFFER(waveform_buffer, Waveform {
     uint sample_count;
     uint start;
     float focus;
@@ -15,32 +15,32 @@ VKO_DECLARE_STORAGE_BUFFER(waveform, Waveform {
     float samples[];
 })
 
-#define waveform vko_buffer(waveform, waveform_buffer_id)
+#define WAVEFORM vko_buffer(waveform_buffer, waveform_buffer_id)
 
-float get_raw_sample(int index) {
-    return waveform.samples[(uint(index) + waveform.start) % waveform.sample_count];
+float waveform_get_raw(int index) {
+    return WAVEFORM.samples[(uint(index) + WAVEFORM.start) % WAVEFORM.sample_count];
 }
 
-float get_sample(int index) {
+float waveform_get(int index) {
     if (index < 0) {
-        index += int(waveform.period * ceil(float(-index) / waveform.period));
+        index += int(WAVEFORM.period * ceil(float(-index) / WAVEFORM.period));
     }
-    if (index >= int(waveform.sample_count)) {
-        index -= int(waveform.period * ceil(float(index - int(waveform.sample_count) + 1) / waveform.period));
+    if (index >= int(WAVEFORM.sample_count)) {
+        index -= int(WAVEFORM.period * ceil(float(index - int(WAVEFORM.sample_count) + 1) / WAVEFORM.period));
     }
-    return get_raw_sample(index);
+    return waveform_get_raw(index);
 }
 
-float get_sample(float index) {
+float waveform_get(float index) {
     return mix(
-        get_sample(int(floor(index))),
-        get_sample(int(ceil(index))),
+        waveform_get(int(floor(index))),
+        waveform_get(int(ceil(index))),
         fract(index)
     );
 }
 
-float get_stabilized_index(float index) {
-    return index + waveform.center_sample - float(waveform.sample_count) * waveform.focus;
+float waveform_get_stabilized_index(float index) {
+    return index + WAVEFORM.center_sample - float(WAVEFORM.sample_count) * WAVEFORM.focus;
 }
 
 #endif

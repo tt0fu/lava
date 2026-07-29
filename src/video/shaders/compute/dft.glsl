@@ -20,18 +20,19 @@ layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
 void main() {
     uint idx = gl_GlobalInvocationID.x;
-    if (idx >= dft.bin_count) {
+    if (idx >= DFT.bin_count) {
         return;
     }
 
     float bin_f = float(idx);
-    float frequency = get_frequency(float(idx));
+    float frequency = dft_get_frequency(float(idx));
     float sample_period = SAMPLE_RATE_F / frequency;
     float phase_delta = 2.0 * PI / sample_period;
 
-    float sample_count_f = float(waveform.sample_count);
+    float sample_count_f = float(WAVEFORM.sample_count);
 
-    float window_size = min(PERIOD_COUNT * sample_period, sample_count_f); // sample_count_f
+    // float window_size = min(PERIOD_COUNT * sample_period, sample_count_f);
+    float window_size = sample_count_f;
     float window_start_f = floor((sample_count_f - window_size) * 0.5);
     float window_end_f = ceil((sample_count_f + window_size) * 0.5);
 
@@ -46,9 +47,9 @@ void main() {
 
     for (int i = 0; i < window_len; ++i) {
         int sample_index = window_start + i;
-        float cur_sample = get_raw_sample(sample_index);
+        float cur_sample = waveform_get_raw(sample_index);
         float x = (float(sample_index) * 2.0 - sample_count_f) / window_size;
-        float w = window(x, 20.0);//frequency * frequency / 500.0);
+        float w = window(x, 10.0);//frequency * frequency / 500.0);
 
         float phase = initial_phase + phase_delta * float(i);
         vec2 complex_exp = vec2(cos(phase), sin(phase));
@@ -56,5 +57,5 @@ void main() {
         amplitude += complex_exp * cur_sample * w;
         total_window += w;
     }
-    dft.bins[idx] = amplitude / total_window;
+    DFT.bins[idx] = amplitude / total_window;
 }

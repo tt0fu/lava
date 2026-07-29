@@ -1,5 +1,6 @@
-#ifndef GRIDNODE
-#define GRIDNODE
+#ifndef LIB_GRIDNODE
+#define LIB_GRIDNODE
+
 const ivec2 GRIDNODE_RESOLUTION = ivec2(120, 13);
 const ivec2 HNODE_RESOLUTION = ivec2(480, 52);
 const int HNODE_CHANNELS_PER_COL = 6;

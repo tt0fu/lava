@@ -3,37 +3,41 @@
 #include "lib/push_constants.glsl"
 #include "lib/waveform.glsl"
 #include "lib/dft.glsl"
+#include "lib/bands.glsl"
 #include "lib/in_out.glsl"
 
-VKO_DECLARE_STORAGE_BUFFER(material, BandsParams {
+VKO_DECLARE_STORAGE_BUFFER(material_buffer, BandsParams {
     vec3 col;
-    float gain;
+    vec4 gain;
 })
 
-#define material vko_buffer(material, material_buffer_id)
+#define MATERIAL vko_buffer(material_buffer, material_buffer_id)
 
 void main() {
-    int band = int(UV.x * 4);
-    
-    float height = 0.5;
+    vec4 cur = bands_get((1.0 - UV.x) * (BANDS.history_length * BANDS.history_delta)) * MATERIAL.gain;
+
+    float y = (1.0 - UV.y) * 4;
+    int band = int(y);
+    float in_band = fract(y);
+    float value = 0.5;
     switch (band) {
         case 0: {
-            height = dft.bands.x;
+            value = cur.x;
             break;
         }
         case 1: {
-            height = dft.bands.y;
+            value = cur.y;
             break;
         }
         case 2: {
-            height = dft.bands.z;
+            value = cur.z;
             break;
         }
         case 3: {
-            height = dft.bands.w;
+            value = cur.w;
             break;
         }
     }
-    float val = step(1.0 - UV.y, height * material.gain);
-    COLOR = vec4(material.col, val);
+    float alpha = step(abs(0.5 - in_band), value) + value;
+    COLOR = vec4(MATERIAL.col, alpha);
 }

@@ -3,12 +3,12 @@
 #include "lib/push_constants.glsl"
 #include "lib/in_out.glsl"
 
-VKO_DECLARE_STORAGE_BUFFER(material, SimpleParams {
+VKO_DECLARE_STORAGE_BUFFER(material_buffer, SimpleParams {
     float value;
 })
 
-#define material vko_buffer(material, material_buffer_id)
+#define MATERIAL vko_buffer(material_buffer, material_buffer_id)
 
 void main() {
-    COLOR = vec4(UV, material.value, 1.0);
+    COLOR = vec4(UV, MATERIAL.value, 1.0);
 }

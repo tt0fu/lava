@@ -1,32 +1,31 @@
-#ifndef DFT
-#define DFT
+#ifndef LIB_DFT
+#define LIB_DFT
 
 #include <vulkano.glsl>
 
 #include "consts.glsl"
 
-VKO_DECLARE_STORAGE_BUFFER(dft, Dft {
+VKO_DECLARE_STORAGE_BUFFER(dft_buffer, Dft {
     uint bin_count;
     float lowest_frequency;
     float exp_bins;
-    vec4 bands;
     vec2 bins[];
 })
 
-#define dft vko_buffer(dft, dft_buffer_id)
+#define DFT vko_buffer(dft_buffer, dft_buffer_id)
 
-float get_bin(float frequency) {
-    return dft.exp_bins * log2(frequency / dft.lowest_frequency);
+float dft_get_bin(float frequency) {
+    return DFT.exp_bins * log2(frequency / DFT.lowest_frequency);
 }
 
-float get_frequency(float bin) {
-    return dft.lowest_frequency * exp2(bin / dft.exp_bins);
+float dft_get_frequency(float bin) {
+    return DFT.lowest_frequency * exp2(bin / DFT.exp_bins);
 }
 
-float smooth_magnitude(float bin) {
+float dft_smooth_magnitude(float bin) {
     return mix(
-        length(dft.bins[int(floor(bin))]),
-        length(dft.bins[int(ceil(bin))]),
+        length(DFT.bins[int(floor(bin))]),
+        length(DFT.bins[int(ceil(bin))]),
         fract(bin)
     );
 }

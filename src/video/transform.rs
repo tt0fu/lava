@@ -68,7 +68,7 @@ impl Transform {
             Unit::Pixels => self.anchor_position.value,
         };
         let anchor_norm = 2.0 * anchor_pixels / resolution - Vec2::ONE;
-        anchor_norm + (Vec2::ONE - self.anchor_type * 2.0)
+        anchor_norm + (Vec2::ONE - self.anchor_type * 2.0) * self.get_scale(resolution)
     }
 
     /// Get a vertex shader ready 2d transformation matrix:
@@ -87,12 +87,14 @@ impl Transform {
 
     pub fn get_buffer(&self, resolution: Vec2) -> shaders::Transform {
         let mat = self.get_matrix(resolution);
+        let scale = self.get_scale(resolution) * resolution;
         shaders::Transform {
             mat: [
                 mat.x_axis.to_array().into(),
                 mat.y_axis.to_array().into(),
                 mat.z_axis.to_array().into(),
             ],
+            aspect_ratio: scale.x.abs() / scale.y.abs(),
         }
     }
 

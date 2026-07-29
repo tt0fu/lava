@@ -2,14 +2,12 @@
 
 #include <vulkano.glsl>
 
+#include "../lib/consts.glsl"
 #include "../lib/compute_push_constants.glsl"
 #include "../lib/global.glsl"
 #include "../lib/waveform.glsl"
 #include "../lib/dft.glsl"
-
-const float BASS_HIGH_FREQ = 200.0;
-const float LOW_MID_HIGH_FREQ = 800.0;
-const float HIGH_MID_HIGH_FREQ = 3000.0;
+#include "../lib/bands.glsl"
 
 vec4 get_bands(float freq) { // (bass, low, high, treble)
     float bass = freq < BASS_HIGH_FREQ ? 1.0 : 0.0;
@@ -20,7 +18,7 @@ vec4 get_bands(float freq) { // (bass, low, high, treble)
 }
 
 float period_bias(uint bin) {
-    return exp(-10.0 * float(bin) / float(dft.bin_count));
+    return exp(-10.0 * float(bin) / float(DFT.bin_count));
 }
 
 const uint MAX_BINS = 8192;
@@ -38,18 +36,18 @@ void main() {
 
     candidate_bands[id] = vec4(-1.0);
 
-    for (uint bin = id; bin < dft.bin_count; bin += GROUP_SIZE) {
-        float mag = length(dft.bins[bin]);
-        magnitudes[bin] = length(dft.bins[bin]);
+    for (uint bin = id; bin < DFT.bin_count; bin += GROUP_SIZE) {
+        float mag = length(DFT.bins[bin]);
+        magnitudes[bin] = length(DFT.bins[bin]);
 
-        vec4 bands = get_bands(get_frequency(float(bin)));
+        vec4 bands = get_bands(dft_get_frequency(float(bin)));
         candidate_bands[id] = max(candidate_bands[id], bands * mag);
     }
     barrier();
 
     candidate_scores[id] = -1.0;
     candidate_bins[id] = 0;
-    for (uint bin = id + 1; bin < dft.bin_count - 1; bin += GROUP_SIZE) {
+    for (uint bin = id + 1; bin < DFT.bin_count - 1; bin += GROUP_SIZE) {
         float mag = magnitudes[bin];
         float score = mag * period_bias(bin);
         if (mag > magnitudes[bin - 1] && mag > magnitudes[bin + 1] && score > candidate_scores[id]) {
@@ -73,12 +71,14 @@ void main() {
             }
         }
 
-        dft.bands = clamp(best_bands * 2.5, vec4(0.0), vec4(1.0));
+        BANDS.start = (BANDS.start + BANDS.history_length - 1) % BANDS.history_length;
+        BANDS.history[BANDS.start] = best_bands;
+        BANDS.chrono += best_bands * GLOBAL.delta;
 
-        float frequency = get_frequency(float(best_bin));
+        float frequency = dft_get_frequency(float(best_bin));
         float period = SAMPLE_RATE_F / frequency;
-        waveform.period = period;
-        float angle = atan(dft.bins[best_bin].y, dft.bins[best_bin].x) / (PI * 2.0) - 0.25;
-        waveform.center_sample = (angle + ceil(waveform.sample_count * waveform.focus / period)) * period;
+        WAVEFORM.period = period;
+        float angle = atan(DFT.bins[best_bin].y, DFT.bins[best_bin].x) / (PI * 2.0) - 0.25;
+        WAVEFORM.center_sample = (angle + ceil(WAVEFORM.sample_count * WAVEFORM.focus / period)) * period;
     }
 }

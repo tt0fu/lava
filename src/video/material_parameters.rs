@@ -1,4 +1,4 @@
-use glam::Vec3;
+use glam::{Vec3, Vec4};
 
 use crate::video::{parameters::TypedParameters, shaders};
 
@@ -66,7 +66,7 @@ impl TypedParameters for SpectrogramParameters {
 
 pub struct BandsParameters {
     pub col: Vec3,
-    pub gain: f32,
+    pub gain: Vec4,
 }
 
 impl TypedParameters for BandsParameters {
@@ -74,8 +74,8 @@ impl TypedParameters for BandsParameters {
 
     fn get_content(&self) -> Self::Content {
         Self::Content {
-            col: self.col.into(),
-            gain: self.gain,
+            col: self.col.to_array().into(),
+            gain: self.gain.into(),
         }
     }
 }

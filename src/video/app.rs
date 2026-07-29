@@ -1,4 +1,4 @@
-use glam::vec3;
+use glam::{Vec4, vec2, vec3, vec4};
 use std::sync::Arc;
 use vulkano::{
     VulkanError, VulkanLibrary,
@@ -40,8 +40,8 @@ use crate::{
         parameters::Layout,
         render_task::RenderTask,
         scene_data::{Material, Panel, SceneData},
-        shaders,
-        transform::Transform,
+        shaders::{self, specialize},
+        transform::{Transform, Unit, Vector, anchor},
     },
 };
 
@@ -52,6 +52,7 @@ pub struct Buffers {
     pub global: Id<Buffer>,
     pub waveform: Id<Buffer>,
     pub dft: Id<Buffer>,
+    pub bands: Id<Buffer>,
 
     pub transforms: Vec<Id<Buffer>>,
     pub materials: Vec<Id<Buffer>>,
@@ -152,55 +153,80 @@ impl App {
         .unwrap();
 
         let scene_data = SceneData {
-            shaders: vec![
-                unsafe { shaders::load_simple(&device) }
-                    .unwrap()
-                    .specialize(&[(0, 48000u32.into())])
-                    .entry_point("main")
-                    .unwrap(),
-                unsafe { shaders::load_clock(&device) }
-                    .unwrap()
-                    .specialize(&[(0, 48000u32.into())])
-                    .entry_point("main")
-                    .unwrap(),
-                unsafe { shaders::load_waveform(&device) }
-                    .unwrap()
-                    .specialize(&[(0, 48000u32.into())])
-                    .entry_point("main")
-                    .unwrap(),
-                unsafe { shaders::load_spectrogram(&device) }
-                    .unwrap()
-                    .specialize(&[(0, 48000u32.into())])
-                    .entry_point("main")
-                    .unwrap(),
-                unsafe { shaders::load_bands(&device) }
-                    .unwrap()
-                    .specialize(&[(0, 48000u32.into())])
-                    .entry_point("main")
-                    .unwrap(),
+            shaders: unsafe {
+                vec![
+                    shaders::load_simple(&device).unwrap(),
+                    shaders::load_clock(&device).unwrap(),
+                    shaders::load_waveform(&device).unwrap(),
+                    shaders::load_spectrogram(&device).unwrap(),
+                    shaders::load_bands(&device).unwrap(),
+                ]
+            }
+            .iter()
+            .map(|m| specialize(&m).entry_point("main").unwrap())
+            .collect(),
+            transforms: vec![
+                Transform {
+                    // bottom strip
+                    anchor_type: anchor::BOTTOM_LEFT,
+                    anchor_position: Vector {
+                        value: vec2(0.0, 1.0),
+                        unit: Unit::Screen,
+                    },
+                    scale: Vector {
+                        value: vec2(1.0, 0.2),
+                        unit: Unit::Screen,
+                    },
+                    rotation: 0.0,
+                },
+                Transform {
+                    // middle strip
+                    anchor_type: anchor::BOTTOM_LEFT,
+                    anchor_position: Vector {
+                        value: vec2(0.0, 0.8),
+                        unit: Unit::Screen,
+                    },
+                    scale: Vector {
+                        value: vec2(1.0, 0.4),
+                        unit: Unit::Screen,
+                    },
+                    rotation: 0.0,
+                },
+                Transform {
+                    // top strip
+                    anchor_type: anchor::BOTTOM_LEFT,
+                    anchor_position: Vector {
+                        value: vec2(0.0, 0.4),
+                        unit: Unit::Screen,
+                    },
+                    scale: Vector {
+                        value: vec2(1.0, 0.4),
+                        unit: Unit::Screen,
+                    },
+                    rotation: 0.0,
+                },
             ],
-            transforms: vec![Transform::FULLSCREEN],
             materials: vec![
                 Material {
                     shader_id: 2,
                     parameters: Box::new(WaveformParameters {
                         col: vec3(1.0, 1.0, 1.0),
                         line_width: 50.0,
-                        gain: 1.5,
+                        gain: 1.0,
                     }),
                 },
                 Material {
                     shader_id: 3,
                     parameters: Box::new(SpectrogramParameters {
                         col: vec3(1.0, 1.0, 1.0),
-                        gain: 1.5,
+                        gain: 2.0,
                     }),
                 },
                 Material {
                     shader_id: 4,
                     parameters: Box::new(BandsParameters {
                         col: vec3(1.0, 1.0, 1.0),
-                        gain: 1.0,
+                        gain: vec4(2.0, 2.0, 3.0, 8.0),
                     }),
                 },
             ],
@@ -210,11 +236,16 @@ impl App {
                     material_id: 2,
                     order: 0,
                 },
-                // Panel {
-                //     transform_id: 0,
-                //     material_id: 1,
-                //     order: 1,
-                // },
+                Panel {
+                    transform_id: 1,
+                    material_id: 1,
+                    order: 0,
+                },
+                Panel {
+                    transform_id: 2,
+                    material_id: 0,
+                    order: 0,
+                },
             ],
             background_color: vec3(0.0, 0.0, 0.0),
         };
@@ -234,7 +265,7 @@ impl App {
             Stream::new(
                 audio_settings.sample_rate,
                 audio_settings.channel_count,
-                512,
+                audio_settings.stream_buffer_size,
                 audio_settings.sample_count,
             )
             .unwrap(),
@@ -332,59 +363,36 @@ impl ApplicationHandler for App {
                 | MemoryTypeFilter::HOST_RANDOM_ACCESS,
             ..Default::default()
         };
+
+        let create_buffer = |layout| {
+            self.resources
+                .create_buffer(&buffer_create_info, &allocation_create_info, layout)
+                .unwrap()
+        };
         let buffers = Buffers {
-            global: self
-                .resources
-                .create_buffer(
-                    &buffer_create_info,
-                    &allocation_create_info,
-                    global_parameters.layout(),
+            global: create_buffer(global_parameters.layout()),
+            waveform: create_buffer(self.stream.layout()),
+            dft: create_buffer(
+                DeviceLayout::new_unsized::<shaders::Dft>(self.audio_settings.dft_bin_count as u64)
+                    .unwrap(),
+            ),
+            bands: create_buffer(
+                DeviceLayout::new_unsized::<shaders::Bands>(
+                    self.audio_settings.bands_history_length as u64,
                 )
                 .unwrap(),
-            waveform: self
-                .resources
-                .create_buffer(
-                    &buffer_create_info,
-                    &allocation_create_info,
-                    self.stream.layout(),
-                )
-                .unwrap(),
-            dft: self
-                .resources
-                .create_buffer(
-                    &buffer_create_info,
-                    &allocation_create_info,
-                    DeviceLayout::new_unsized::<shaders::Dft>(self.audio_settings.bin_count as u64)
-                        .unwrap(),
-                )
-                .unwrap(),
+            ),
             transforms: self
                 .scene_data
                 .transforms
                 .iter()
-                .map(|_| {
-                    self.resources
-                        .create_buffer(
-                            &buffer_create_info,
-                            &allocation_create_info,
-                            DeviceLayout::new_sized::<shaders::Transform>(),
-                        )
-                        .unwrap()
-                })
+                .map(|_| create_buffer(DeviceLayout::new_sized::<shaders::Transform>()))
                 .collect(),
             materials: self
                 .scene_data
                 .materials
                 .iter()
-                .map(|m| {
-                    self.resources
-                        .create_buffer(
-                            &buffer_create_info,
-                            &allocation_create_info,
-                            m.parameters.layout(),
-                        )
-                        .unwrap()
-                })
+                .map(|m| create_buffer(m.parameters.layout()))
                 .collect(),
         };
 
@@ -399,16 +407,22 @@ impl ApplicationHandler for App {
                             .parameters
                             .write(buffers.materials[i], tcx);
                     }
-                    let guard = tcx.write_buffer::<shaders::Dft>(buffers.dft, ..);
-                    guard.bin_count = self.audio_settings.bin_count as u32;
+                    let dft_guard = tcx.write_buffer::<shaders::Dft>(buffers.dft, ..);
+                    dft_guard.bin_count = self.audio_settings.dft_bin_count as u32;
                     let periods = 2.0;
-                    guard.lowest_frequency = self.audio_settings.sample_rate as f32
+                    dft_guard.lowest_frequency = self.audio_settings.sample_rate as f32
                         / self.audio_settings.sample_count as f32
                         * periods;
-                    guard.exp_bins = (self.audio_settings.bin_count as f32
+                    dft_guard.exp_bins = (self.audio_settings.dft_bin_count as f32
                         / (self.audio_settings.sample_count as f32 / (2.0 * periods)).log2())
                     .floor()
                     .into();
+                    let bands_guard = tcx.write_buffer::<shaders::Bands>(buffers.bands, ..);
+                    bands_guard.history_length = self.audio_settings.bands_history_length as u32;
+                    bands_guard.history_delta = (1f32 / 165.0).into(); // FIXME
+                    bands_guard.chrono = Vec4::ZERO.into();
+                    bands_guard.start =
+                        (self.audio_settings.bands_history_length as u32 - 1).into();
 
                     Ok(())
                 },
@@ -416,7 +430,10 @@ impl ApplicationHandler for App {
                     .materials
                     .iter()
                     .map(|&id| (id, HostAccessType::Write))
-                    .chain(std::iter::once((buffers.dft, HostAccessType::Write))),
+                    .chain([
+                        (buffers.dft, HostAccessType::Write),
+                        (buffers.bands, HostAccessType::Write),
+                    ]),
                 [],
                 [],
             )

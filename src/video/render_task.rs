@@ -221,6 +221,10 @@ impl RenderTask {
             .global_set()
             .create_storage_buffer(buffers.dft, 0, None)
             .unwrap();
+        let bands_buffer_id = bcx
+            .global_set()
+            .create_storage_buffer(buffers.bands, 0, None)
+            .unwrap();
         let transform_buffer_ids = buffers
             .transforms
             .iter()
@@ -243,9 +247,12 @@ impl RenderTask {
                 global_buffer_id,
                 waveform_buffer_id,
                 dft_buffer_id,
+                bands_buffer_id,
+
                 transform_buffer_id: transform_buffer_ids[p.transform_id],
                 material_buffer_id: material_buffer_ids[p.material_id],
-                depth: (max_order - p.order) as f32 / (max_order + 1 - min_order) as f32,
+
+                panel_depth: (max_order - p.order) as f32 / (max_order + 1 - min_order) as f32,
             })
             .collect::<Vec<shaders::PushConstants>>();
 
@@ -291,6 +298,7 @@ impl RenderTask {
                 global_buffer_id,
                 waveform_buffer_id,
                 dft_buffer_id,
+                bands_buffer_id,
             },
         });
     }
@@ -322,9 +330,13 @@ impl Task for RenderTask {
                 0,
                 &pass_data.compute_push_constants,
             );
-            
+
             cbf.bind_pipeline_compute(&pass_data.dft_pipeline);
-            cbf.dispatch([(self.audio_settings.bin_count as u32).div_ceil(64), 1, 1]);
+            cbf.dispatch([
+                (self.audio_settings.dft_bin_count as u32).div_ceil(64),
+                1,
+                1,
+            ]);
             cbf.pipeline_barrier(&DependencyInfo {
                 memory_barriers: &[MemoryBarrier {
                     src_stages: PipelineStages::COMPUTE_SHADER,

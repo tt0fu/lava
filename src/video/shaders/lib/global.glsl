@@ -1,14 +1,15 @@
-#ifndef GLOBAL
-#define GLOBAL
+#ifndef LIB_GLOBAL
+#define LIB_GLOBAL
 
 #include <vulkano.glsl>
 
 #include "consts.glsl"
 
-VKO_DECLARE_STORAGE_BUFFER(global, GlobalParams {
+VKO_DECLARE_STORAGE_BUFFER(global_buffer, GlobalParams {
     float time;
+    float delta;
 })
 
-#define global vko_buffer(global, global_buffer_id)
+#define GLOBAL vko_buffer(global_buffer, global_buffer_id)
 
 #endif
