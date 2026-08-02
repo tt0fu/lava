@@ -18,6 +18,10 @@ rustPlatform.buildRustPackage rec {
   doCheck = false;
   cargoLock = {
     lockFile = ./Cargo.lock;
+    outputHashes = {
+      "vulkano-0.35.0" = "sha256-UMfCh67b/Yb4w7EcN+G2z+BCkOR4ecuElgllBdN4nxY=";
+      "concurrent-slotmap-0.1.0-alpha.2" = "sha256-Sle4tcFvWLLKmghpzG6Ds/yU57VrNddzDIerVJ8eHd0=";
+    };
   };
   src = ./.;
 

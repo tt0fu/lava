@@ -13,7 +13,7 @@ use vulkano::{
     image::Image,
     memory::allocator::{AllocationCreateInfo, DeviceLayout, MemoryTypeFilter},
     pipeline::{
-        ComputePipeline, DynamicState, GraphicsPipeline, Pipeline, PipelineLayout,
+        ComputePipeline, DynamicState, GraphicsPipeline, PipelineLayout,
         PipelineShaderStageCreateInfo,
         compute::ComputePipelineCreateInfo,
         graphics::{
@@ -331,7 +331,7 @@ impl Task for RenderTask {
                 &pass_data.compute_push_constants,
             );
 
-            cbf.bind_pipeline_compute(&pass_data.dft_pipeline);
+            cbf.bind_pipeline(&pass_data.dft_pipeline);
             cbf.dispatch([
                 (self.audio_settings.dft_bin_count as u32).div_ceil(64),
                 1,
@@ -348,7 +348,7 @@ impl Task for RenderTask {
                 ..Default::default()
             });
 
-            cbf.bind_pipeline_compute(&pass_data.analysis_pipeline);
+            cbf.bind_pipeline(&pass_data.analysis_pipeline);
             cbf.dispatch([1, 1, 1]);
             cbf.pipeline_barrier(&DependencyInfo {
                 memory_barriers: &[MemoryBarrier {
@@ -374,7 +374,7 @@ impl Task for RenderTask {
             }
 
             for pipeline_data in &pass_data.pipelines {
-                cbf.bind_pipeline_graphics(&pipeline_data.pipeline);
+                cbf.bind_pipeline(&pipeline_data.pipeline);
                 for push_constant in &pipeline_data.panels {
                     cbf.push_constants(&pass_data.layout, 0, push_constant);
                     cbf.draw(VERTICES.len() as u32, 1, 0, 0);

@@ -17,7 +17,6 @@ image = "0"
 vulkano = { git = "https://github.com/vulkano-rs/vulkano", branch = "master", package = "vulkano" }
 vulkano-macros = { git = "https://github.com/vulkano-rs/vulkano", branch = "master", package = "vulkano-macros" }
 vulkano-shaders = { git = "https://github.com/vulkano-rs/vulkano", branch = "master", package = "vulkano-shaders" }
-vulkano-util = { git = "https://github.com/vulkano-rs/vulkano", branch = "master", package = "vulkano-util" }
 vulkano-taskgraph = { git = "https://github.com/vulkano-rs/vulkano", branch = "master", package = "vulkano-taskgraph" }
 winit = { version = "0", features = ["serde"] }
 
