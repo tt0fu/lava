@@ -1,8 +1,10 @@
 use crate::video::{
-    app::{App, Buffers, RenderContext},
+    app::App,
     audio_settings::AudioSettings,
+    buffers::Buffers,
     model::{MyVertex, VERTICES},
     parameters::Write,
+    render_context::RenderContext,
     scene_data::SceneData,
     shaders,
 };

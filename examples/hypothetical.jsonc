@@ -1,6 +1,6 @@
 {
   "transforms": {
-    "top_left": {
+    "left_screen": {
       "top_left": { "screen": [0.0, 0.0] },
       "scale": { "screen": [0.5, 0.5] },
       "rotation": 45.0,

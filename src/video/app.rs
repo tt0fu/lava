@@ -1,23 +1,22 @@
-use glam::{Vec4, vec2, vec3, vec4};
+use glam::Vec4;
 use std::sync::Arc;
 use vulkano::{
     VulkanError, VulkanLibrary,
-    buffer::{Buffer, BufferCreateInfo, BufferUsage},
     device::{
         Device, DeviceCreateInfo, DeviceExtensions, DeviceFeatures, Queue, QueueCreateInfo,
         QueueFlags, physical::PhysicalDeviceType,
     },
     format::Format,
-    image::{Image, ImageCreateInfo, ImageType, ImageUsage},
+    image::{ImageCreateInfo, ImageType, ImageUsage},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
-    memory::allocator::{AllocationCreateInfo, DeviceLayout, MemoryTypeFilter},
+    memory::allocator::AllocationCreateInfo,
     pipeline::graphics::viewport::Viewport,
-    swapchain::{Surface, Swapchain, SwapchainCreateInfo},
+    swapchain::{Surface, SwapchainCreateInfo},
 };
 use vulkano_taskgraph::{
     Id, QueueFamilyType,
     descriptor_set::BindlessContext,
-    graph::{AttachmentInfo, CompileInfo, ExecutableTaskGraph, ExecuteError, TaskGraph},
+    graph::{AttachmentInfo, CompileInfo, ExecuteError, TaskGraph},
     resource::{
         AccessTypes, Flight, HostAccessType, ImageLayoutType, Resources, ResourcesCreateInfo,
     },
@@ -34,45 +33,13 @@ use crate::{
     audio::stream::Stream,
     stats::frame_timer::FrameTimer,
     video::{
-        audio_settings::AudioSettings,
-        global_parameters::GlobalParameters,
-        material_parameters::{BandsParameters, SpectrogramParameters, WaveformParameters},
-        parameters::Layout,
-        render_task::RenderTask,
-        scene_data::{Material, Panel, SceneData},
-        shaders::{self, specialize},
-        transform::{Transform, Unit, Vector, anchor},
+        audio_settings::AudioSettings, buffers::Buffers, global_parameters::GlobalParameters,
+        render_context::RenderContext, render_task::RenderTask, scene_data::SceneData, shaders,
     },
 };
 
 const MAX_FRAMES_IN_FLIGHT: u32 = 2;
 const MIN_SWAPCHAIN_IMAGES: u32 = MAX_FRAMES_IN_FLIGHT + 1;
-
-pub struct Buffers {
-    pub global: Id<Buffer>,
-    pub waveform: Id<Buffer>,
-    pub dft: Id<Buffer>,
-    pub bands: Id<Buffer>,
-
-    pub transforms: Vec<Id<Buffer>>,
-    pub materials: Vec<Id<Buffer>>,
-}
-
-pub struct RenderContext {
-    pub window: Arc<Window>,
-    pub swapchain_id: Id<Swapchain>,
-    pub depth_buffer_id: Id<Image>,
-    pub viewport: Viewport,
-    pub recreate_swapchain: bool,
-    pub rewrite_transforms: bool,
-    pub task_graph: ExecutableTaskGraph<Self>,
-    pub virtual_swapchain_id: Id<Swapchain>,
-    pub virtual_depth_buffer_id: Id<Image>,
-    pub global_parameters: GlobalParameters,
-    pub stream: Arc<Stream>,
-
-    pub buffers: Buffers,
-}
 
 pub struct App {
     pub instance: Arc<Instance>,
@@ -153,103 +120,7 @@ impl App {
         )
         .unwrap();
 
-        let scene_data = SceneData {
-            shaders: unsafe {
-                vec![
-                    shaders::load_simple(&device).unwrap(),
-                    shaders::load_clock(&device).unwrap(),
-                    shaders::load_waveform(&device).unwrap(),
-                    shaders::load_spectrogram(&device).unwrap(),
-                    shaders::load_bands(&device).unwrap(),
-                ]
-            }
-            .iter()
-            .map(|m| specialize(&m).entry_point("main").unwrap())
-            .collect(),
-            transforms: vec![
-                Transform {
-                    // bottom strip
-                    anchor_type: anchor::BOTTOM_LEFT,
-                    anchor_position: Vector {
-                        value: vec2(0.0, 1.0),
-                        unit: Unit::Screen,
-                    },
-                    scale: Vector {
-                        value: vec2(1.0, 0.2),
-                        unit: Unit::Screen,
-                    },
-                    rotation: 0.0,
-                },
-                Transform {
-                    // middle strip
-                    anchor_type: anchor::BOTTOM_LEFT,
-                    anchor_position: Vector {
-                        value: vec2(0.0, 0.8),
-                        unit: Unit::Screen,
-                    },
-                    scale: Vector {
-                        value: vec2(1.0, 0.4),
-                        unit: Unit::Screen,
-                    },
-                    rotation: 0.0,
-                },
-                Transform {
-                    // top strip
-                    anchor_type: anchor::BOTTOM_LEFT,
-                    anchor_position: Vector {
-                        value: vec2(0.0, 0.4),
-                        unit: Unit::Screen,
-                    },
-                    scale: Vector {
-                        value: vec2(1.0, 0.4),
-                        unit: Unit::Screen,
-                    },
-                    rotation: 0.0,
-                },
-            ],
-            materials: vec![
-                Material {
-                    shader_id: 2,
-                    parameters: Box::new(WaveformParameters {
-                        col: vec3(1.0, 1.0, 1.0),
-                        line_width: 50.0,
-                        gain: 1.0,
-                    }),
-                },
-                Material {
-                    shader_id: 3,
-                    parameters: Box::new(SpectrogramParameters {
-                        col: vec3(1.0, 1.0, 1.0),
-                        gain: 2.0,
-                    }),
-                },
-                Material {
-                    shader_id: 4,
-                    parameters: Box::new(BandsParameters {
-                        col: vec3(1.0, 1.0, 1.0),
-                        gain: vec4(2.0, 2.0, 3.0, 8.0),
-                    }),
-                },
-            ],
-            panels: vec![
-                Panel {
-                    transform_id: 0,
-                    material_id: 2,
-                    order: 0,
-                },
-                Panel {
-                    transform_id: 1,
-                    material_id: 1,
-                    order: 0,
-                },
-                Panel {
-                    transform_id: 2,
-                    material_id: 0,
-                    order: 0,
-                },
-            ],
-            background_color: vec3(0.0, 0.0, 0.0),
-        };
+        let scene_data = SceneData::new(&device);
 
         let queue = queues[0].clone();
         let resources = Resources::new(
@@ -355,47 +226,13 @@ impl ApplicationHandler for App {
 
         let global_parameters = GlobalParameters::new();
 
-        let buffer_create_info = BufferCreateInfo {
-            usage: BufferUsage::STORAGE_BUFFER,
-            ..Default::default()
-        };
-        let allocation_create_info = AllocationCreateInfo {
-            memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
-                | MemoryTypeFilter::HOST_RANDOM_ACCESS,
-            ..Default::default()
-        };
-
-        let create_buffer = |layout| {
-            self.resources
-                .create_buffer(&buffer_create_info, &allocation_create_info, layout)
-                .unwrap()
-        };
-        let buffers = Buffers {
-            global: create_buffer(global_parameters.layout()),
-            waveform: create_buffer(self.stream.layout()),
-            dft: create_buffer(
-                DeviceLayout::new_unsized::<shaders::Dft>(self.audio_settings.dft_bin_count as u64)
-                    .unwrap(),
-            ),
-            bands: create_buffer(
-                DeviceLayout::new_unsized::<shaders::Bands>(
-                    self.audio_settings.bands_history_length as u64,
-                )
-                .unwrap(),
-            ),
-            transforms: self
-                .scene_data
-                .transforms
-                .iter()
-                .map(|_| create_buffer(DeviceLayout::new_sized::<shaders::Transform>()))
-                .collect(),
-            materials: self
-                .scene_data
-                .materials
-                .iter()
-                .map(|m| create_buffer(m.parameters.layout()))
-                .collect(),
-        };
+        let buffers = Buffers::new(
+            &self.audio_settings,
+            &self.scene_data,
+            &self.resources,
+            &self.stream,
+            &global_parameters,
+        );
 
         unsafe {
             vulkano_taskgraph::execute(

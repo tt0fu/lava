@@ -1,9 +1,11 @@
 pub mod app;
 pub mod audio_settings;
+pub mod buffers;
 pub mod global_parameters;
 pub mod material_parameters;
 pub mod model;
 pub mod parameters;
+pub mod render_context;
 pub mod render_task;
 pub mod scene_data;
 pub mod shaders;
