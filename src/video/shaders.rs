@@ -3,39 +3,40 @@ use std::sync::Arc;
 use vulkano::shader::{ShaderModule, SpecializedShaderModule};
 
 vulkano_shaders::shader! {
+    root_path_env: "CARGO_MANIFEST_DIR",
     lang: "glsl",
     shaders: {
         vertex: {
             ty: "vertex",
-            path: "shaders/vertex.glsl",
+            path: "src/video/shaders/vertex.glsl",
         },
         dft: {
             ty: "compute",
-            path: "shaders/compute/dft.glsl",
+            path: "src/video/shaders/compute/dft.glsl",
         },
         analysis: {
             ty: "compute",
-            path: "shaders/compute/analysis.glsl",
+            path: "src/video/shaders/compute/analysis.glsl",
         },
         simple: {
             ty: "fragment",
-            path: "shaders/simple.glsl",
+            path: "src/video/shaders/simple.glsl",
         },
         clock: {
             ty: "fragment",
-            path: "shaders/clock.glsl",
+            path: "src/video/shaders/clock.glsl",
         },
         waveform: {
             ty: "fragment",
-            path: "shaders/waveform.glsl",
+            path: "src/video/shaders/waveform.glsl",
         },
         spectrogram: {
             ty: "fragment",
-            path: "shaders/spectrogram.glsl",
+            path: "src/video/shaders/spectrogram.glsl",
         },
         bands: {
             ty: "fragment",
-            path: "shaders/bands.glsl",
+            path: "src/video/shaders/bands.glsl",
         },
     },
 }

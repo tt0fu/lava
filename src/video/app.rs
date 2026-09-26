@@ -111,6 +111,7 @@ impl App {
         let (physical_device, queue_family_index) = instance
             .enumerate_physical_devices()
             .unwrap()
+            .into_iter()
             .filter(|p| p.supported_extensions().contains(&device_extensions))
             .filter_map(|p| {
                 p.queue_family_properties()
@@ -136,7 +137,7 @@ impl App {
             physical_device.properties().device_name,
             physical_device.properties().device_type,
         );
-        let (device, mut queues) = Device::new(
+        let (device, queues) = Device::new(
             &physical_device,
             &DeviceCreateInfo {
                 enabled_extensions: &device_extensions,
@@ -250,7 +251,7 @@ impl App {
             background_color: vec3(0.0, 0.0, 0.0),
         };
 
-        let queue = queues.next().unwrap();
+        let queue = queues[0].clone();
         let resources = Resources::new(
             &device,
             &ResourcesCreateInfo {
