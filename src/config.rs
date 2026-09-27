@@ -10,7 +10,7 @@ use vulkano::pipeline::graphics::color_blend::{AttachmentBlend, BlendFactor, Ble
 
 use crate::{
     audio::audio_settings::AudioSettings,
-    video::transform::{Transform, Unit, Vector, anchor},
+    video::transform::{Scalar, Transform, Unit, Vector, anchor},
 };
 
 #[derive(Deserialize)]
@@ -77,24 +77,20 @@ pub enum AnchorConfig {
     Custom(Vec2),
 }
 
-#[derive(Clone, Deserialize)]
-pub enum VectorConfig {
-    #[serde(rename = "screen")]
-    Screen(Vec2),
-    #[serde(rename = "pixels")]
-    Pixels(Vec2),
-}
+#[derive(Clone, Copy, Deserialize)]
+pub struct VectorConfig(pub [(f32, Unit); 2]);
 
 impl From<VectorConfig> for Vector {
     fn from(config: VectorConfig) -> Self {
-        match config {
-            VectorConfig::Screen(value) => Vector {
-                value,
-                unit: Unit::Screen,
+        let [(x, x_unit), (y, y_unit)] = config.0;
+        Vector {
+            x: Scalar {
+                value: x,
+                unit: x_unit,
             },
-            VectorConfig::Pixels(value) => Vector {
-                value,
-                unit: Unit::Pixels,
+            y: Scalar {
+                value: y,
+                unit: y_unit,
             },
         }
     }

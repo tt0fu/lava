@@ -10,21 +10,113 @@
   },
   "transforms": {
     "top strip": {
-      "anchor": "center",
-      "position": { "screen": [0.5, 0.15] },
-      "scale": { "screen": [1.0, -0.3] },
+      "anchor": "top",
+      "position": [
+        [0.5, "w"],
+        [0.0, "h"],
+      ],
+      "scale": [
+        [1.0, "w"],
+        [0.3, "h"],
+      ],
       "rotation": 0.0,
     },
     "bottom strip": {
-      "anchor": "center",
-      "position": { "screen": [0.5, 0.85] },
-      "scale": { "screen": [1.0, 0.3] },
+      "anchor": "top",
+      "position": [
+        [0.5, "w"],
+        [1.0, "h"],
+      ],
+      "scale": [
+        [-1.0, "w"],
+        [-0.3, "h"],
+      ],
       "rotation": 0.0,
     },
     "center": {
       "anchor": "center",
-      "position": { "screen": [0.5, 0.5] },
-      "scale": { "screen": [0.225, 0.4] },
+      "position": [
+        [0.5, "w"],
+        [0.5, "h"],
+      ],
+      "scale": [
+        [0.4, "h"],
+        [0.4, "h"],
+      ],
+      "rotation": 0.0,
+    },
+
+    "left": {
+      "anchor": "left",
+      "position": [
+        [0.0, "w"],
+        [0.5, "h"],
+      ],
+      "scale": [
+        [0.38, "w"],
+        [0.4, "h"],
+      ],
+      "rotation": 0.0,
+    },
+    "left top": {
+      "anchor": "bottom left",
+      "position": [
+        [0.0, "w"],
+        [0.5, "h"],
+      ],
+      "scale": [
+        [0.38, "w"],
+        [0.2, "h"],
+      ],
+      "rotation": 0.0,
+    },
+    "left bottom": {
+      "anchor": "bottom left",
+      "position": [
+        [0.0, "w"],
+        [0.5, "h"],
+      ],
+      "scale": [
+        [0.38, "w"],
+        [-0.2, "h"],
+      ],
+      "rotation": 0.0,
+    },
+
+    "right": {
+      "anchor": "right",
+      "position": [
+        [1.0, "w"],
+        [0.5, "h"],
+      ],
+      "scale": [
+        [0.38, "w"],
+        [0.4, "h"],
+      ],
+      "rotation": 0.0,
+    },
+    "right top": {
+      "anchor": "bottom left",
+      "position": [
+        [1.0, "w"],
+        [0.5, "h"],
+      ],
+      "scale": [
+        [-0.38, "w"],
+        [0.2, "h"],
+      ],
+      "rotation": 0.0,
+    },
+    "right bottom": {
+      "anchor": "bottom left",
+      "position": [
+        [1.0, "w"],
+        [0.5, "h"],
+      ],
+      "scale": [
+        [-0.38, "w"],
+        [-0.2, "h"],
+      ],
       "rotation": 0.0,
     },
   },
@@ -39,6 +131,15 @@
         "foreground": [1.0, 1.0, 1.0, 1.0],
         "line_width": 50.0,
         "gain": 1.0,
+      },
+    },
+    "spectrogram": {
+      "shader": "spectrogram",
+      "parameters": {
+        "background": [0.0, 0.0, 0.0, 0.0],
+        "foreground": [1.0, 1.0, 1.0, 1.0],
+        "gain": 1.8,
+        "debug": false,
       },
     },
     "pattern": {
@@ -57,7 +158,7 @@
       "parameters": {
         "image": "logo",
         "multiply": [1.0, 1.0, 1.0, 1.0],
-        "add": [0.0, 0.0, 0.0, 1.0],
+        "add": [0.0, 0.0, 0.0, 0.0],
         "band_weights": [1.0, 0.0, 0.0, 0.0],
         "min_size": 0.5,
       },
@@ -86,6 +187,44 @@
     {
       "transform": "bottom strip",
       "material": "waveform",
+      "order": 1,
+      "blend": "multiply",
+    },
+
+    {
+      "transform": "left",
+      "material": "pattern",
+      "order": 0,
+      "blend": "normal",
+    },
+    {
+      "transform": "left top",
+      "material": "spectrogram",
+      "order": 1,
+      "blend": "multiply",
+    },
+    {
+      "transform": "left bottom",
+      "material": "spectrogram",
+      "order": 1,
+      "blend": "multiply",
+    },
+
+    {
+      "transform": "right",
+      "material": "pattern",
+      "order": 0,
+      "blend": "normal",
+    },
+    {
+      "transform": "right top",
+      "material": "spectrogram",
+      "order": 1,
+      "blend": "multiply",
+    },
+    {
+      "transform": "right bottom",
+      "material": "spectrogram",
       "order": 1,
       "blend": "multiply",
     },

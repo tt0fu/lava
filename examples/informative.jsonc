@@ -11,20 +11,38 @@
   "transforms": {
     "bottom strip": {
       "anchor": "bottom left",
-      "position": { "screen": [0.0, 1.0] },
-      "scale": { "screen": [1.0, 0.2] },
+      "position": [
+        [0.0, "w"],
+        [1.0, "h"],
+      ],
+      "scale": [
+        [1.0, "w"],
+        [0.2, "h"],
+      ],
       "rotation": 0.0,
     },
     "middle strip": {
       "anchor": "bottom left",
-      "position": { "screen": [0.0, 0.8] },
-      "scale": { "screen": [1.0, 0.4] },
+      "position": [
+        [0.0, "w"],
+        [0.8, "h"],
+      ],
+      "scale": [
+        [1.0, "w"],
+        [0.4, "h"],
+      ],
       "rotation": 0.0,
     },
     "top strip": {
       "anchor": "bottom left",
-      "position": { "screen": [0.0, 0.4] },
-      "scale": { "screen": [1.0, 0.4] },
+      "position": [
+        [0.0, "w"],
+        [0.4, "h"],
+      ],
+      "scale": [
+        [1.0, "w"],
+        [0.4, "h"],
+      ],
       "rotation": 0.0,
     },
   },

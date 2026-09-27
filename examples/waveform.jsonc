@@ -11,8 +11,14 @@
   "transforms": {
     "fullscreen": {
       "anchor": "top left",
-      "position": { "screen": [0.0, 0.0] },
-      "scale": { "screen": [1.0, 1.0] },
+      "position": [
+        [0.0, "w"],
+        [0.0, "h"],
+      ],
+      "scale": [
+        [1.0, "w"],
+        [1.0, "h"],
+      ],
       "rotation": 0.0,
     },
   },
