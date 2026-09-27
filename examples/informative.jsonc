@@ -6,6 +6,7 @@
     "sample_count": 8192,
     "dft_bin_count": 2048,
     "bands_history_length": 1024,
+    "bands_history_delta": 0.01,
   },
   "transforms": {
     "bottom strip": {

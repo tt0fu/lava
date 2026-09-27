@@ -8,6 +8,7 @@
 VKO_DECLARE_STORAGE_BUFFER(bands_buffer, Bands {
     uint history_length;
     float history_delta;
+    float time_since_push;
     vec4 chrono;
     uint start;
     vec4 history[];

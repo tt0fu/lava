@@ -156,7 +156,8 @@ impl RenderContext {
                     .into();
                     let bands_guard = tcx.write_buffer::<shaders::Bands>(buffers.bands, ..);
                     bands_guard.history_length = audio_settings.bands_history_length as u32;
-                    bands_guard.history_delta = (1f32 / 165.0).into(); // FIXME
+                    bands_guard.history_delta = audio_settings.bands_history_delta.into();
+                    bands_guard.time_since_push = 0.0.into();
                     bands_guard.chrono = Vec4::ZERO.into();
                     bands_guard.start = (audio_settings.bands_history_length as u32 - 1).into();
 
@@ -221,6 +222,7 @@ impl RenderContext {
             )
             .buffer_access(buffers.global, AccessTypes::COMPUTE_SHADER_STORAGE_READ)
             .buffer_access(buffers.dft, AccessTypes::COMPUTE_SHADER_STORAGE_READ)
+            .buffer_access(buffers.bands, AccessTypes::COMPUTE_SHADER_STORAGE_READ)
             .buffer_access(buffers.bands, AccessTypes::COMPUTE_SHADER_STORAGE_WRITE)
             .buffer_access(buffers.waveform, AccessTypes::COMPUTE_SHADER_STORAGE_WRITE)
             .build();

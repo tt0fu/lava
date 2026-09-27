@@ -71,8 +71,13 @@ void main() {
             }
         }
 
-        BANDS.start = (BANDS.start + BANDS.history_length - 1) % BANDS.history_length;
-        BANDS.history[BANDS.start] = best_bands;
+        BANDS.time_since_push += GLOBAL.delta;
+        uint pushes = uint(floor(BANDS.time_since_push / BANDS.history_delta));
+        BANDS.time_since_push -= float(pushes) * BANDS.history_delta;
+        for (uint i = 0; i < min(pushes, BANDS.history_length); i++) {
+            BANDS.start = (BANDS.start + BANDS.history_length - 1) % BANDS.history_length;
+            BANDS.history[BANDS.start] = best_bands;
+        }
         BANDS.chrono += best_bands * GLOBAL.delta;
 
         float frequency = dft_get_frequency(float(best_bin));

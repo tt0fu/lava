@@ -8,4 +8,5 @@ pub struct AudioSettings {
     pub sample_count: usize,
     pub dft_bin_count: usize,
     pub bands_history_length: usize,
+    pub bands_history_delta: f32,
 }
