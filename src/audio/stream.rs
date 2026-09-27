@@ -71,7 +71,7 @@ impl Stream {
                             .filter(|config| config.sample_format() == SampleFormat::F32)
                         {
                             eprintln!(
-                                "channels={}, fetch_buffer_size={}, sample_rate=[{}, {}]",
+                                "channels={}, stream_buffer_size={}, sample_rate=[{}, {}]",
                                 config.channels(),
                                 match config.buffer_size() {
                                     SupportedBufferSize::Range { min, max } =>

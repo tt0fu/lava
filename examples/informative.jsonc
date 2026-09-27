@@ -6,7 +6,7 @@
     "sample_count": 8192,
     "dft_bin_count": 2048,
     "bands_history_length": 1024,
-    "bands_history_delta": 0.01,
+    "bands_history_delta": 0.005,
   },
   "transforms": {
     "bottom strip": {
@@ -45,7 +45,7 @@
       "shader": "bands",
       "parameters": {
         "col": [1.0, 1.0, 1.0],
-        "gain": [2.0, 2.0, 3.0, 8.0],
+        "gain": [1.5, 2.0, 3.0, 8.0],
       },
     },
   },

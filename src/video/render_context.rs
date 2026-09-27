@@ -133,6 +133,10 @@ impl RenderContext {
             &global_parameters,
         );
 
+        if audio_settings.dft_bin_count > 8192 {
+            panic!("dft bin count too high: {}, highest supported is 8192", audio_settings.dft_bin_count);
+        }
+
         unsafe {
             vulkano_taskgraph::execute(
                 queue,
