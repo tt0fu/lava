@@ -6,8 +6,9 @@ use vulkano::{
     device::{Device, Queue},
     format::Format,
     image::{
-        Image, ImageAspects, ImageCreateInfo, ImageLayout, ImageSubresourceLayers, ImageType,
-        ImageUsage, sampler::SamplerCreateInfo, view::ImageViewCreateInfo,
+        ImageAspects, ImageCreateInfo, ImageLayout, ImageSubresourceLayers, ImageType, ImageUsage,
+        sampler::{Filter, SamplerAddressMode, SamplerCreateInfo, SamplerMipmapMode},
+        view::ImageViewCreateInfo,
     },
     instance::Instance,
     memory::allocator::{AllocationCreateInfo, DeviceLayout, MemoryTypeFilter},
@@ -42,13 +43,11 @@ use crate::{
 pub struct RenderContext {
     pub window: Arc<Window>,
     pub swapchain_id: Id<Swapchain>,
-    pub depth_buffer_id: Id<Image>,
     pub viewport: Viewport,
     pub recreate_swapchain: bool,
     pub rewrite_transforms: bool,
     pub task_graph: ExecutableTaskGraph<Self>,
     pub virtual_swapchain_id: Id<Swapchain>,
-    pub virtual_depth_buffer_id: Id<Image>,
     pub global_parameters: GlobalParameters,
     pub stream: Arc<Stream>,
 
@@ -104,17 +103,6 @@ impl RenderContext {
                 )
                 .unwrap()
         };
-        let depth_buffer_create_info = ImageCreateInfo {
-            image_type: ImageType::Dim2d,
-            format: Format::D16_UNORM,
-            extent: [window_size.width, window_size.height, 1],
-            usage: ImageUsage::DEPTH_STENCIL_ATTACHMENT | ImageUsage::TRANSIENT_ATTACHMENT,
-            ..Default::default()
-        };
-        let depth_buffer_id = resources
-            .create_image(&depth_buffer_create_info, &AllocationCreateInfo::default())
-            .unwrap();
-
         let viewport = Viewport {
             offset: [0.0, 0.0],
             extent: window_size.into(),
@@ -127,7 +115,6 @@ impl RenderContext {
             ..Default::default()
         });
         let virtual_framebuffer_id = task_graph.add_framebuffer();
-        let virtual_depth_buffer_id = task_graph.add_image(&depth_buffer_create_info);
 
         let global_parameters = GlobalParameters::new();
 
@@ -183,7 +170,14 @@ impl RenderContext {
 
         let sampler_id = bcx
             .global_set()
-            .create_sampler(&SamplerCreateInfo::simple_repeat_linear())
+            .create_sampler(&SamplerCreateInfo {
+                mag_filter: Filter::Linear,
+                min_filter: Filter::Linear,
+                mipmap_mode: SamplerMipmapMode::Linear,
+                address_mode: [SamplerAddressMode::ClampToEdge; 3],
+                max_lod: None,
+                ..Default::default()
+            })
             .unwrap();
 
         let sampled_image_ids = image_ids
@@ -361,21 +355,10 @@ impl RenderContext {
                 flight_id,
                 scene_data,
                 virtual_swapchain_id,
-                virtual_depth_buffer_id,
             ),
         );
         render_node
             .framebuffer(virtual_framebuffer_id)
-            .depth_stencil_attachment(
-                virtual_depth_buffer_id,
-                AccessTypes::DEPTH_STENCIL_ATTACHMENT_READ
-                    | AccessTypes::DEPTH_STENCIL_ATTACHMENT_WRITE,
-                ImageLayoutType::Optimal,
-                &AttachmentInfo {
-                    clear: true,
-                    ..Default::default()
-                },
-            )
             .color_attachment(
                 virtual_swapchain_id.current_image_id(),
                 AccessTypes::COLOR_ATTACHMENT_WRITE,
@@ -444,13 +427,11 @@ impl RenderContext {
         RenderContext {
             window,
             swapchain_id,
-            depth_buffer_id,
             viewport,
             recreate_swapchain,
             rewrite_transforms,
             task_graph,
             virtual_swapchain_id,
-            virtual_depth_buffer_id,
             buffers,
             global_parameters,
             stream: stream.clone(),
@@ -469,22 +450,6 @@ impl RenderContext {
             })
             .expect("failed to recreate swapchain");
 
-        let mut batch = resources.create_deferred_batch();
-        batch.destroy_image(self.depth_buffer_id);
-        batch.enqueue();
-
-        self.depth_buffer_id = resources
-            .create_image(
-                &ImageCreateInfo {
-                    image_type: ImageType::Dim2d,
-                    format: Format::D16_UNORM,
-                    extent: [window_size.width, window_size.height, 1],
-                    usage: ImageUsage::DEPTH_STENCIL_ATTACHMENT | ImageUsage::TRANSIENT_ATTACHMENT,
-                    ..Default::default()
-                },
-                &AllocationCreateInfo::default(),
-            )
-            .unwrap();
         self.viewport.extent = window_size.into();
         self.recreate_swapchain = false;
     }
@@ -500,7 +465,6 @@ impl RenderContext {
 
         let resource_map = resource_map!(&self.task_graph,
             self.virtual_swapchain_id => self.swapchain_id,
-            self.virtual_depth_buffer_id => self.depth_buffer_id
         )
         .unwrap();
         match unsafe {

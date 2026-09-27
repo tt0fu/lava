@@ -26,7 +26,7 @@ impl Waveform {
         Self {
             sample_rate: audio_settings.sample_rate,
             start: 0,
-            gain: 1.0,
+            gain: 10.0,
             focus: 0.5,
             samples: Vec::with_capacity(audio_settings.sample_count),
             max_samples: audio_settings.sample_count,

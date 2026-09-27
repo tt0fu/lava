@@ -46,11 +46,11 @@ void main() {
     barrier();
 
     candidate_scores[id] = -1.0;
-    candidate_bins[id] = 0;
+    candidate_bins[id] = DFT.bin_count - 1;
     for (uint bin = id + 1; bin < DFT.bin_count - 1; bin += GROUP_SIZE) {
         float mag = magnitudes[bin];
         float score = mag * period_bias(bin);
-        if (mag > magnitudes[bin - 1] && mag > magnitudes[bin + 1] && score > candidate_scores[id]) {
+        if (mag > 0.02 && mag > magnitudes[bin - 1] && mag > magnitudes[bin + 1] && score > candidate_scores[id]) {
             candidate_scores[id] = score;
             candidate_bins[id] = bin;
         }
@@ -61,7 +61,7 @@ void main() {
         vec4 best_bands = vec4(-1.0);
 
         float best_score = -1.0;
-        uint best_bin = 0;
+        uint best_bin = DFT.bin_count - 1;
         for (uint i = 0; i < GROUP_SIZE; i++) {
             best_bands = max(candidate_bands[i], best_bands);
 

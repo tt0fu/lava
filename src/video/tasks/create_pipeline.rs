@@ -8,7 +8,6 @@ use vulkano::{
         graphics::{
             GraphicsPipelineCreateInfo,
             color_blend::{AttachmentBlend, ColorBlendAttachmentState, ColorBlendState},
-            depth_stencil::{DepthState, DepthStencilState},
             input_assembly::{InputAssemblyState, PrimitiveTopology::TriangleStrip},
             multisample::MultisampleState,
             rasterization::RasterizationState,
@@ -57,10 +56,7 @@ pub fn create_graphics_pipeline(
             }),
             viewport_state: Some(&ViewportState::default()),
             rasterization_state: Some(&RasterizationState::default()),
-            depth_stencil_state: Some(&DepthStencilState {
-                depth: Some(DepthState::simple()),
-                ..Default::default()
-            }),
+            depth_stencil_state: None,
             multisample_state: Some(&MultisampleState::default()),
             color_blend_state: Some(&ColorBlendState {
                 attachments: &[ColorBlendAttachmentState {

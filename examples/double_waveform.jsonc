@@ -1,39 +1,98 @@
 {
+  "audio": {
+    "sample_rate": 48000,
+    "channel_count": 1,
+    "stream_buffer_size": 256,
+    "sample_count": 8192,
+    "dft_bin_count": 2048,
+    "bands_history_length": 1024,
+    "bands_history_delta": 0.005,
+  },
+  "transforms": {
+    "top strip": {
+      "center": { "screen": [0.5, 0.15] },
+      "scale": { "screen": [1.0, -0.3] },
+      "rotation": 0.0,
+    },
+    "bottom strip": {
+      "center": { "screen": [0.5, 0.85] },
+      "scale": { "screen": [1.0, 0.3] },
+      "rotation": 0.0,
+    },
+    "center": {
+      "center": { "screen": [0.5, 0.5] },
+      "scale": { "screen": [0.225, 0.4] },
+      "rotation": 0.0,
+    },
+  },
+  "images": {
+    "logo": "./logo.png",
+  },
+  "materials": {
+    "waveform": {
+      "shader": "waveform",
+      "parameters": {
+        "background": [0.0, 0.0, 0.0, 1.0],
+        "foreground": [0.0, 0.0, 0.0, 0.0],
+        "line_width": 50.0,
+        "gain": 1.0,
+      },
+    },
+    "pattern": {
+      "shader": "pattern",
+      "parameters": {
+        "lightness": 0.8,
+        "chroma": 0.1,
+        "scale": 1.0,
+        "repeats": 5.0,
+        "warp_speed": 1.0,
+        "scroll_speed": 1.0,
+      },
+    },
+    "logo": {
+      "shader": "image",
+      "parameters": {
+        "image": "logo",
+        "multiply": [0.0, 0.0, 0.0, -1.0],
+        "add": [0.0, 0.0, 0.0, 1.0],
+        "band_weights": [1.0, 0.0, 0.0, 0.0],
+        "min_size": 0.5,
+      },
+    },
+  },
   "panels": [
     {
-      "material": {
-        "type": "waveform",
-        "parameters": {
-          "gain": 0.7,
-        },
-      },
-      "transform": {
-        "scale": { "type": "screen", "value": [1.0, -0.5] },
-        "position": { "type": "screen", "value": [0.5, 0.2] },
-      },
+      "transform": "top strip",
+      "material": "pattern",
+      "order": 0,
     },
     {
-      "material": {
-        "type": "waveform",
-        "parameters": {
-          "gain": 0.7,
-        },
-      },
-      "transform": {
-        "scale": { "type": "screen", "value": [1.0, 0.5] },
-        "position": { "type": "screen", "value": [0.5, 0.8] },
-      },
+      "transform": "top strip",
+      "material": "waveform",
+      "order": 1,
+    },
+
+    {
+      "transform": "bottom strip",
+      "material": "pattern",
+      "order": 0,
     },
     {
-      "material": {
-        "type": "masked_pattern",
-        "parameters": {},
-      },
-      "transform": {
-        "scale": { "type": "pixels", "value": [500.0, 500.0] },
-        "position": { "type": "screen", "value": [0.5, 0.5] },
-      },
+      "transform": "bottom strip",
+      "material": "waveform",
+      "order": 1,
+    },
+
+    {
+      "transform": "center",
+      "material": "pattern",
+      "order": 0,
+    },
+    {
+      "transform": "center",
+      "material": "logo",
+      "order": 1,
     },
   ],
-  "image_path": "./logo.png",
+  "background_color": [0.0, 0.0, 0.0],
 }

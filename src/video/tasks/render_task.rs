@@ -10,7 +10,6 @@ use std::{slice, sync::Arc};
 use vulkano::{
     buffer::{Buffer, BufferCreateInfo, BufferUsage},
     device::{Device, Queue},
-    image::Image,
     memory::allocator::{AllocationCreateInfo, DeviceLayout, MemoryTypeFilter},
     pipeline::{
         GraphicsPipeline, PipelineLayout, PipelineShaderStageCreateInfo,
@@ -26,22 +25,22 @@ use vulkano_taskgraph::{
     resource::{Flight, HostAccessType, Resources},
 };
 
-// Information needed to draw all panels with a specific shader
-pub struct PipelineData {
+// Everything needed to draw a single panel
+pub struct Draw {
     pub pipeline: Arc<GraphicsPipeline>,
-    pub panels: Vec<shaders::PushConstants>,
+    pub push_constants: shaders::PushConstants,
 }
 
-// Informaton needed to draw all panels
+// Information needed to draw all panels
 pub struct RenderData {
     pub layout: Arc<PipelineLayout>,
-    pub pipelines: Vec<PipelineData>,
+    /// Panels in draw order, back to front.
+    pub draws: Vec<Draw>,
 }
 
 pub struct RenderTask {
     pub vertex_buffer_id: Id<Buffer>,
     pub swapchain_id: Id<Swapchain>,
-    pub depth_buffer_id: Id<Image>,
     pub scene_data: Arc<SceneData>,
     pub render_data: Option<RenderData>,
 }
@@ -53,7 +52,6 @@ impl RenderTask {
         flight_id: Id<Flight>,
         scene_data: &Arc<SceneData>,
         swapchain_id: Id<Swapchain>,
-        depth_buffer_id: Id<Image>,
     ) -> Self {
         let vertex_buffer_id = resources
             .create_buffer(
@@ -93,7 +91,6 @@ impl RenderTask {
         Self {
             vertex_buffer_id,
             swapchain_id,
-            depth_buffer_id,
             scene_data: scene_data.clone(),
             render_data,
         }
@@ -128,47 +125,44 @@ impl RenderTask {
             .pipeline_layout_from_stages(all_stages.as_slice())
             .unwrap();
 
-        let min_order = scene_data.panels.iter().map(|p| p.order).min().unwrap();
-        let max_order = scene_data.panels.iter().map(|p| p.order).max().unwrap();
-
         let pushes = scene_data
             .panels
             .iter()
-            .map(|p| storage_buffers.push_constants(p, min_order, max_order, sampler_id))
+            .map(|p| storage_buffers.push_constants(p, sampler_id))
             .collect::<Vec<shaders::PushConstants>>();
-
-        let mut panels_per_pipeline = vec![vec![]; scene_data.shaders.len()];
-
-        scene_data.panels.iter().enumerate().for_each(|(ind, p)| {
-            panels_per_pipeline[scene_data.materials[p.material_id].shader_id].push(ind)
-        });
 
         let pipelines = scene_data
             .shaders
             .iter()
-            .enumerate()
-            .map(|(ind, e)| PipelineData {
-                pipeline: create_graphics_pipeline(
+            .map(|e| {
+                create_graphics_pipeline(
                     device,
                     &subpass,
                     &vertex_input_state,
-                    &layout.clone(),
+                    &layout,
                     &[
                         PipelineShaderStageCreateInfo::new(&vertex_shader),
                         PipelineShaderStageCreateInfo::new(&e),
                     ],
-                ),
-                panels: panels_per_pipeline[ind]
-                    .iter()
-                    .map(|&i| pushes[i])
-                    .collect(),
+                )
+            })
+            .collect::<Vec<Arc<GraphicsPipeline>>>();
+
+        let mut panel_order = (0..scene_data.panels.len()).collect::<Vec<_>>();
+        panel_order.sort_by_key(|&i| scene_data.panels[i].order);
+
+        let draws = panel_order
+            .iter()
+            .map(|&i| {
+                let panel = &scene_data.panels[i];
+                Draw {
+                    pipeline: pipelines[scene_data.materials[panel.material_id].shader_id].clone(),
+                    push_constants: pushes[i],
+                }
             })
             .collect();
 
-        self.render_data = Some(RenderData {
-            layout: layout.clone(),
-            pipelines,
-        });
+        self.render_data = Some(RenderData { layout, draws });
     }
 }
 
@@ -178,7 +172,6 @@ impl Task for RenderTask {
     fn clear_values(&self, clear_values: &mut ClearValues<'_>, _world: &Self::World) {
         let bg: [f32; 3] = self.scene_data.background_color.into();
         clear_values.set(self.swapchain_id.current_image_id(), bg);
-        clear_values.set(self.depth_buffer_id, [1.0]);
     }
 
     unsafe fn execute(
@@ -202,12 +195,14 @@ impl Task for RenderTask {
             cbf.set_viewport(0, slice::from_ref(&rcx.viewport));
             cbf.bind_vertex_buffers(0, &[self.vertex_buffer_id], &[0], &[], &[]);
 
-            for pipeline_data in &pass_data.pipelines {
-                cbf.bind_pipeline(&pipeline_data.pipeline);
-                for push_constant in &pipeline_data.panels {
-                    cbf.push_constants(&pass_data.layout, 0, push_constant);
-                    cbf.draw(VERTICES.len() as u32, 1, 0, 0);
+            let mut bound_pipeline: Option<&Arc<GraphicsPipeline>> = None;
+            for draw in &pass_data.draws {
+                if bound_pipeline.is_none_or(|p| !Arc::ptr_eq(p, &draw.pipeline)) {
+                    cbf.bind_pipeline(&draw.pipeline);
+                    bound_pipeline = Some(&draw.pipeline);
                 }
+                cbf.push_constants(&pass_data.layout, 0, &draw.push_constants);
+                cbf.draw(VERTICES.len() as u32, 1, 0, 0);
             }
         };
         Ok(())

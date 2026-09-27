@@ -8,7 +8,8 @@ use crate::{
     config::Config,
     video::{
         material_parameters::{
-            BandsParameters, ClockParameters, ImageParameters, PatternParameters, ColorParameters, SpectrogramParameters, WaveformParameters
+            BandsParameters, ClockParameters, ColorParameters, ImageParameters, PatternParameters,
+            SpectrogramParameters, WaveformParameters,
         },
         parameters::Parameters,
         shaders,
@@ -159,7 +160,7 @@ fn material_parameters(
                 );
             }
             Box::new(image_parameters)
-        },
+        }
         "pattern" => Box::new(serde_json::from_value::<PatternParameters>(parameters)?),
         _ => bail!("unknown shader '{shader}'"),
     };

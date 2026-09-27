@@ -110,13 +110,7 @@ impl StorageBuffers {
         }
     }
 
-    pub fn push_constants(
-        &self,
-        panel: &Panel,
-        min_order: u32,
-        max_order: u32,
-        sampler_id: SamplerId,
-    ) -> PushConstants {
+    pub fn push_constants(&self, panel: &Panel, sampler_id: SamplerId) -> PushConstants {
         shaders::PushConstants {
             global_buffer_id: self.global,
             waveform_buffer_id: self.waveform,
@@ -127,8 +121,6 @@ impl StorageBuffers {
             material_buffer_id: self.materials[panel.material_id],
 
             sampler_id,
-
-            panel_depth: (max_order - panel.order) as f32 / (max_order + 1 - min_order) as f32,
         }
     }
 

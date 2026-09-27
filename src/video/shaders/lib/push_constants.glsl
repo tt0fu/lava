@@ -8,14 +8,12 @@ layout(push_constant) uniform PushConstants {
     StorageBufferId waveform_buffer_id;
     StorageBufferId dft_buffer_id;
     StorageBufferId bands_buffer_id;
-    
+
     StorageBufferId transform_buffer_id;
-    
+
     StorageBufferId material_buffer_id;
 
     SamplerId sampler_id;
-
-    float panel_depth;
 };
 
 #endif

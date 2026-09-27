@@ -90,8 +90,10 @@ impl TypedParameters for WaveformParameters {
 
 #[derive(Deserialize)]
 pub struct SpectrogramParameters {
-    pub col: Vec3,
+    pub background: Vec4,
+    pub foreground: Vec4,
     pub gain: f32,
+    pub debug: bool,
 }
 
 impl TypedParameters for SpectrogramParameters {
@@ -99,8 +101,10 @@ impl TypedParameters for SpectrogramParameters {
 
     fn get_content(&self) -> Self::Content {
         Self::Content {
-            col: self.col.into(),
+            background: self.background.into(),
+            foreground: self.foreground.into(),
             gain: self.gain,
+            debug: self.debug as u32,
         }
     }
 }
@@ -125,6 +129,10 @@ impl TypedParameters for BandsParameters {
 #[derive(Deserialize)]
 pub struct ImageParameters {
     pub image: String,
+    pub multiply: Vec4,
+    pub add: Vec4,
+    pub band_weights: Vec4,
+    pub min_size: f32,
 
     #[serde(skip)]
     resolved: OnceLock<SampledImageId>,
@@ -135,10 +143,14 @@ impl TypedParameters for ImageParameters {
 
     fn get_content(&self) -> Self::Content {
         Self::Content {
-            image: *self
+            image: (*self
                 .resolved
                 .get()
-                .expect("image parameter was not resolved before being written"),
+                .expect("image parameter was not resolved before being written")).into(),
+            multiply: self.multiply.into(),
+            add: self.add.into(),
+            band_weights: self.band_weights.into(),
+            min_size: self.min_size,
         }
     }
 

@@ -19,23 +19,28 @@
     "waveform": {
       "shader": "waveform",
       "parameters": {
-        "background": [0.0, 1.0, 0.0, 1.0],
+        "background": [0.0, 0.0, 0.0, 1.0],
         "foreground": [0.0, 0.0, 0.0, 0.0],
         "line_width": 50.0,
         "gain": 1.0,
       },
     },
-    "red": {
-      "shader": "color",
+    "pattern": {
+      "shader": "pattern",
       "parameters": {
-        "color": [1.0, 0.0, 0.0, 1.0],
+        "lightness": 0.8,
+        "chroma": 0.1,
+        "scale": 1.0,
+        "repeats": 5.0,
+        "warp_speed": 1.0,
+        "scroll_speed": 1.0,
       },
     },
   },
   "panels": [
     {
       "transform": "fullscreen",
-      "material": "red",
+      "material": "pattern",
       "order": 0,
     },
     {
@@ -44,5 +49,5 @@
       "order": 1,
     },
   ],
-  "background_color": [0.0, 0.0, 1.0],
+  "background_color": [0.0, 0.0, 0.0],
 }

@@ -24,21 +24,13 @@
       "scale": { "screen": [1.0, 0.4] },
       "rotation": 0.0,
     },
-    "center": {
-      "center": { "screen": [0.5, 0.5] },
-      "scale": { "pixels": [100.0, 100.0] },
-      "rotation": 0.0,
-    },
-  },
-  "images": {
-    "logo": "./logo.png",
   },
   "materials": {
     "waveform": {
       "shader": "waveform",
       "parameters": {
-        "background": [0.0, 0.0, 0.0, 1.0],
-        "foreground": [0.0, 0.0, 0.0, 0.0],
+        "background": [0.0, 0.0, 0.0, 0.0],
+        "foreground": [1.0, 1.0, 1.0, 1.0],
         "line_width": 50.0,
         "gain": 1.0,
       },
@@ -46,8 +38,10 @@
     "spectrogram": {
       "shader": "spectrogram",
       "parameters": {
-        "col": [1.0, 1.0, 1.0],
+        "background": [0.0, 0.0, 0.0, 0.0],
+        "foreground": [1.0, 1.0, 1.0, 1.0],
         "gain": 2.0,
+        "debug": true,
       },
     },
     "bands": {
@@ -55,23 +49,6 @@
       "parameters": {
         "col": [1.0, 1.0, 1.0],
         "gain": [1.5, 2.0, 3.0, 8.0],
-      },
-    },
-    "logo": {
-      "shader": "image",
-      "parameters": {
-        "image": "logo",
-      },
-    },
-    "pattern": {
-      "shader": "pattern",
-      "parameters": {
-        "lightness": 0.8,
-        "chroma": 0.1,
-        "scale": 1.0,
-        "repeats": 5.0,
-        "warp_speed": 1.0,
-        "scroll_speed": 1.0,
       },
     },
   },
@@ -88,13 +65,8 @@
     },
     {
       "transform": "top strip",
-      "material": "pattern",
-      "order": 0,
-    },
-    {
-      "transform": "top strip",
       "material": "waveform",
-      "order": 1,
+      "order": 0,
     },
   ],
   "background_color": [0.0, 0.0, 0.0],
