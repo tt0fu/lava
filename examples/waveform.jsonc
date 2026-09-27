@@ -10,7 +10,8 @@
   },
   "transforms": {
     "fullscreen": {
-      "top left": { "screen": [0.0, 0.0] },
+      "anchor": "top left",
+      "position": { "screen": [0.0, 0.0] },
       "scale": { "screen": [1.0, 1.0] },
       "rotation": 0.0,
     },
@@ -19,8 +20,8 @@
     "waveform": {
       "shader": "waveform",
       "parameters": {
-        "background": [0.0, 0.0, 0.0, 1.0],
-        "foreground": [0.0, 0.0, 0.0, 0.0],
+        "background": [0.0, 0.0, 0.0, 0.0],
+        "foreground": [1.0, 1.0, 1.0, 0.0],
         "line_width": 50.0,
         "gain": 1.0,
       },
@@ -42,11 +43,13 @@
       "transform": "fullscreen",
       "material": "pattern",
       "order": 0,
+      "blend": "normal",
     },
     {
       "transform": "fullscreen",
       "material": "waveform",
       "order": 1,
+      "blend": "multiply",
     },
   ],
   "background_color": [0.0, 0.0, 0.0],

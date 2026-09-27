@@ -10,17 +10,20 @@
   },
   "transforms": {
     "top strip": {
-      "center": { "screen": [0.5, 0.15] },
+      "anchor": "center",
+      "position": { "screen": [0.5, 0.15] },
       "scale": { "screen": [1.0, -0.3] },
       "rotation": 0.0,
     },
     "bottom strip": {
-      "center": { "screen": [0.5, 0.85] },
+      "anchor": "center",
+      "position": { "screen": [0.5, 0.85] },
       "scale": { "screen": [1.0, 0.3] },
       "rotation": 0.0,
     },
     "center": {
-      "center": { "screen": [0.5, 0.5] },
+      "anchor": "center",
+      "position": { "screen": [0.5, 0.5] },
       "scale": { "screen": [0.225, 0.4] },
       "rotation": 0.0,
     },
@@ -32,8 +35,8 @@
     "waveform": {
       "shader": "waveform",
       "parameters": {
-        "background": [0.0, 0.0, 0.0, 1.0],
-        "foreground": [0.0, 0.0, 0.0, 0.0],
+        "background": [0.0, 0.0, 0.0, 0.0],
+        "foreground": [1.0, 1.0, 1.0, 1.0],
         "line_width": 50.0,
         "gain": 1.0,
       },
@@ -53,7 +56,7 @@
       "shader": "image",
       "parameters": {
         "image": "logo",
-        "multiply": [0.0, 0.0, 0.0, -1.0],
+        "multiply": [1.0, 1.0, 1.0, 1.0],
         "add": [0.0, 0.0, 0.0, 1.0],
         "band_weights": [1.0, 0.0, 0.0, 0.0],
         "min_size": 0.5,
@@ -65,33 +68,39 @@
       "transform": "top strip",
       "material": "pattern",
       "order": 0,
+      "blend": "normal",
     },
     {
       "transform": "top strip",
       "material": "waveform",
       "order": 1,
+      "blend": "multiply",
     },
 
     {
       "transform": "bottom strip",
       "material": "pattern",
       "order": 0,
+      "blend": "normal",
     },
     {
       "transform": "bottom strip",
       "material": "waveform",
       "order": 1,
+      "blend": "multiply",
     },
 
     {
       "transform": "center",
       "material": "pattern",
       "order": 0,
+      "blend": "normal",
     },
     {
       "transform": "center",
       "material": "logo",
       "order": 1,
+      "blend": "multiply",
     },
   ],
   "background_color": [0.0, 0.0, 0.0],

@@ -10,17 +10,20 @@
   },
   "transforms": {
     "bottom strip": {
-      "bottom left": { "screen": [0.0, 1.0] },
+      "anchor": "bottom left",
+      "position": { "screen": [0.0, 1.0] },
       "scale": { "screen": [1.0, 0.2] },
       "rotation": 0.0,
     },
     "middle strip": {
-      "bottom left": { "screen": [0.0, 0.8] },
+      "anchor": "bottom left",
+      "position": { "screen": [0.0, 0.8] },
       "scale": { "screen": [1.0, 0.4] },
       "rotation": 0.0,
     },
     "top strip": {
-      "bottom left": { "screen": [0.0, 0.4] },
+      "anchor": "bottom left",
+      "position": { "screen": [0.0, 0.4] },
       "scale": { "screen": [1.0, 0.4] },
       "rotation": 0.0,
     },
@@ -57,16 +60,19 @@
       "transform": "bottom strip",
       "material": "bands",
       "order": 0,
+      "blend": "normal",
     },
     {
       "transform": "middle strip",
       "material": "spectrogram",
       "order": 0,
+      "blend": "normal",
     },
     {
       "transform": "top strip",
       "material": "waveform",
       "order": 0,
+      "blend": "normal",
     },
   ],
   "background_color": [0.0, 0.0, 0.0],

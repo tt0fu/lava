@@ -13,7 +13,10 @@ use vulkano::{
     memory::allocator::{AllocationCreateInfo, DeviceLayout, MemoryTypeFilter},
     pipeline::{
         GraphicsPipeline, PipelineLayout, PipelineShaderStageCreateInfo,
-        graphics::vertex_input::{Vertex, VertexDefinition},
+        graphics::{
+            color_blend::AttachmentBlend,
+            vertex_input::{Vertex, VertexDefinition},
+        },
     },
     render_pass::Subpass,
     swapchain::Swapchain,
@@ -131,34 +134,43 @@ impl RenderTask {
             .map(|p| storage_buffers.push_constants(p, sampler_id))
             .collect::<Vec<shaders::PushConstants>>();
 
-        let pipelines = scene_data
-            .shaders
-            .iter()
-            .map(|e| {
-                create_graphics_pipeline(
-                    device,
-                    &subpass,
-                    &vertex_input_state,
-                    &layout,
-                    &[
-                        PipelineShaderStageCreateInfo::new(&vertex_shader),
-                        PipelineShaderStageCreateInfo::new(&e),
-                    ],
-                )
-            })
-            .collect::<Vec<Arc<GraphicsPipeline>>>();
+        let mut pipeline_cache: Vec<(usize, AttachmentBlend, Arc<GraphicsPipeline>)> = Vec::new();
+        let mut panel_pipelines = Vec::with_capacity(scene_data.panels.len());
+        for panel in &scene_data.panels {
+            let shader_id = scene_data.materials[panel.material_id].shader_id;
+            let pipeline = match pipeline_cache
+                .iter()
+                .find(|(cached_shader, cached_blend, _)| {
+                    *cached_shader == shader_id && cached_blend == &panel.blend
+                }) {
+                Some((_, _, pipeline)) => pipeline.clone(),
+                None => {
+                    let pipeline = create_graphics_pipeline(
+                        device,
+                        &subpass,
+                        &vertex_input_state,
+                        &layout,
+                        &[
+                            PipelineShaderStageCreateInfo::new(&vertex_shader),
+                            PipelineShaderStageCreateInfo::new(&scene_data.shaders[shader_id]),
+                        ],
+                        &panel.blend,
+                    );
+                    pipeline_cache.push((shader_id, panel.blend.clone(), pipeline.clone()));
+                    pipeline
+                }
+            };
+            panel_pipelines.push(pipeline);
+        }
 
         let mut panel_order = (0..scene_data.panels.len()).collect::<Vec<_>>();
         panel_order.sort_by_key(|&i| scene_data.panels[i].order);
 
         let draws = panel_order
             .iter()
-            .map(|&i| {
-                let panel = &scene_data.panels[i];
-                Draw {
-                    pipeline: pipelines[scene_data.materials[panel.material_id].shader_id].clone(),
-                    push_constants: pushes[i],
-                }
+            .map(|&i| Draw {
+                pipeline: panel_pipelines[i].clone(),
+                push_constants: pushes[i],
             })
             .collect();
 

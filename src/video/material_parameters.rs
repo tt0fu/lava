@@ -146,7 +146,8 @@ impl TypedParameters for ImageParameters {
             image: (*self
                 .resolved
                 .get()
-                .expect("image parameter was not resolved before being written")).into(),
+                .expect("image parameter was not resolved before being written"))
+            .into(),
             multiply: self.multiply.into(),
             add: self.add.into(),
             band_weights: self.band_weights.into(),

@@ -2,7 +2,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{Context, Result, anyhow, bail};
 use glam::Vec3;
-use vulkano::{device::Device, shader::EntryPoint};
+use vulkano::{
+    device::Device, pipeline::graphics::color_blend::AttachmentBlend, shader::EntryPoint,
+};
 
 use crate::{
     config::Config,
@@ -26,9 +28,9 @@ pub struct Panel {
     pub transform_id: usize, // index in the transforms vector
     pub material_id: usize,  // index in the materials vector
     pub order: u32,
+    pub blend: AttachmentBlend,
 }
 
-/// A decoded image, ready to be uploaded to the GPU as an RGBA8 texture.
 pub struct SceneImage {
     pub name: String,
     pub width: u32,
@@ -109,6 +111,7 @@ impl SceneData {
                 transform_id,
                 material_id,
                 order: panel.order,
+                blend: panel.blend.to_blend()?,
             });
         }
 

@@ -43,6 +43,7 @@ pub fn create_graphics_pipeline(
     vertex_input_state: &VertexInputState,
     layout: &Arc<PipelineLayout>,
     stages: &[PipelineShaderStageCreateInfo],
+    blend: &AttachmentBlend,
 ) -> Arc<GraphicsPipeline> {
     GraphicsPipeline::new(
         &device,
@@ -60,7 +61,7 @@ pub fn create_graphics_pipeline(
             multisample_state: Some(&MultisampleState::default()),
             color_blend_state: Some(&ColorBlendState {
                 attachments: &[ColorBlendAttachmentState {
-                    blend: Some(AttachmentBlend::alpha()),
+                    blend: Some(blend.clone()),
                     ..Default::default()
                 }],
                 ..Default::default()
