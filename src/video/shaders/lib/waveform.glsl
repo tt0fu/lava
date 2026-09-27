@@ -6,6 +6,7 @@
 #include "consts.glsl"
 
 VKO_DECLARE_STORAGE_BUFFER(waveform_buffer, Waveform {
+    uint sample_rate;
     uint sample_count;
     uint start;
     float focus;
@@ -41,6 +42,10 @@ float waveform_get(float index) {
 
 float waveform_get_stabilized_index(float index) {
     return index + WAVEFORM.center_sample - float(WAVEFORM.sample_count) * WAVEFORM.focus;
+}
+
+float waveform_sample_rate() {
+    return float(WAVEFORM.sample_rate);
 }
 
 #endif

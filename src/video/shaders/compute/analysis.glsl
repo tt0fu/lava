@@ -76,7 +76,7 @@ void main() {
         BANDS.chrono += best_bands * GLOBAL.delta;
 
         float frequency = dft_get_frequency(float(best_bin));
-        float period = SAMPLE_RATE_F / frequency;
+        float period = waveform_sample_rate() / frequency;
         WAVEFORM.period = period;
         float angle = atan(DFT.bins[best_bin].y, DFT.bins[best_bin].x) / (PI * 2.0) - 0.25;
         WAVEFORM.center_sample = (angle + ceil(WAVEFORM.sample_count * WAVEFORM.focus / period)) * period;

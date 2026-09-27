@@ -1,5 +1,3 @@
-// pub mod analyzer;
-// pub mod audio_engine;
-// pub mod circular_buffer;
+pub mod audio_settings;
 pub mod stream;
 pub mod waveform;

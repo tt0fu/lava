@@ -1,8 +1,9 @@
-use lava::video::{app::App, audio_settings::AudioSettings};
+use lava::{audio::audio_settings::AudioSettings, video::app::App};
 use std::error::Error;
 use winit::event_loop::EventLoop;
 
 fn main() -> Result<(), impl Error> {
+    // TODO parse jsonc
     let audio_settings = AudioSettings {
         sample_rate: 48000,
         channel_count: 1,
@@ -13,7 +14,7 @@ fn main() -> Result<(), impl Error> {
     };
 
     let event_loop = EventLoop::new().unwrap();
-    let mut app = App::new(&event_loop, audio_settings);
+    let mut app = App::new(&event_loop, audio_settings, false);
 
     event_loop.run_app(&mut app)
 }

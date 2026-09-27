@@ -5,7 +5,7 @@ use vulkano::{device::Device, shader::EntryPoint};
 use crate::video::material_parameters::{
     BandsParameters, SpectrogramParameters, WaveformParameters,
 };
-use crate::video::shaders::{self, specialize};
+use crate::video::shaders;
 use crate::video::transform::{Unit, Vector, anchor};
 use crate::video::{parameters::Parameters, transform::Transform};
 
@@ -31,6 +31,7 @@ pub struct SceneData {
 
 impl SceneData {
     pub fn new(device: &Arc<Device>) -> Self {
+        // TODO parse jsonc
         Self {
             shaders: unsafe {
                 vec![
@@ -42,7 +43,7 @@ impl SceneData {
                 ]
             }
             .iter()
-            .map(|m| specialize(&m).entry_point("main").unwrap())
+            .map(|m| m.entry_point("main").unwrap())
             .collect(),
             transforms: vec![
                 Transform {

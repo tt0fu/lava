@@ -1,12 +1,17 @@
 use vulkano::{buffer::Buffer, memory::allocator::DeviceLayout};
 use vulkano_taskgraph::{Id, TaskContext};
 
-use crate::video::{
-    parameters::{Layout, WriteMut},
-    shaders,
+use crate::{
+    audio::audio_settings::AudioSettings,
+    video::{
+        parameters::{Layout, WriteMut},
+        shaders,
+    },
 };
 
 pub struct Waveform {
+    sample_rate: u32,
+
     start: usize,
     gain: f32,
     focus: f32,
@@ -17,13 +22,14 @@ pub struct Waveform {
 }
 
 impl Waveform {
-    pub fn new(max_samples: usize) -> Self {
+    pub fn new(audio_settings: &AudioSettings) -> Self {
         Self {
+            sample_rate: audio_settings.sample_rate,
             start: 0,
             gain: 1.0,
             focus: 0.5,
-            samples: Vec::with_capacity(max_samples),
-            max_samples,
+            samples: Vec::with_capacity(audio_settings.sample_count),
+            max_samples: audio_settings.sample_count,
             unwritten_samples: 0,
         }
     }
@@ -59,6 +65,7 @@ impl Layout for Waveform {
 impl WriteMut for Waveform {
     fn write(&mut self, id: Id<Buffer>, tcx: &mut TaskContext<'_>) {
         let guard = tcx.write_buffer::<shaders::Waveform>(id, ..);
+        guard.sample_rate = self.sample_rate;
         guard.sample_count = self.samples.len() as u32;
         guard.start = self.start as u32;
         guard.focus = self.focus;

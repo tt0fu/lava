@@ -24,21 +24,12 @@ impl FrameTimer {
     pub fn end_frame(&mut self) {
         self.frame_times
             .push(Instant::now().duration_since(self.frame_start));
-        // Invalidate cache because the vector has changed
         self.sorted_cache = None;
     }
 
-    /// Returns the value at the given percentile (0.0 .. 1.0).
-    /// Uses the nearest-rank method. Panics if p is not in [0,1] or if there are no frames.
     pub fn percentile(&mut self, p: f64) -> Duration {
-        assert!(
-            (0.0..=1.0).contains(&p),
-            "Percentile must be between 0 and 1"
-        );
         let len = self.frame_times.len();
-        assert!(len > 0, "No frame times recorded");
 
-        // Ensure cache is up-to-date
         if self.sorted_cache.is_none() {
             let mut sorted = self.frame_times.clone();
             sorted.sort();
@@ -50,7 +41,6 @@ impl FrameTimer {
         sorted[index]
     }
 
-    /// (number of frames, average, min, max, 90%, 99%, 99.9%)
     pub fn results(
         &mut self,
     ) -> (

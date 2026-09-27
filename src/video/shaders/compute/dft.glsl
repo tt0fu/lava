@@ -26,7 +26,7 @@ void main() {
 
     float bin_f = float(idx);
     float frequency = dft_get_frequency(float(idx));
-    float sample_period = SAMPLE_RATE_F / frequency;
+    float sample_period = waveform_sample_rate() / frequency;
     float phase_delta = 2.0 * PI / sample_period;
 
     float sample_count_f = float(WAVEFORM.sample_count);

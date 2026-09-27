@@ -10,7 +10,7 @@ use vulkano_taskgraph::{Id, TaskContext};
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    audio::waveform::Waveform,
+    audio::{audio_settings::AudioSettings, waveform::Waveform},
     video::parameters::{Layout, Write, WriteMut},
 };
 
@@ -20,12 +20,7 @@ pub struct Stream {
 }
 
 impl Stream {
-    pub fn new(
-        sample_rate: u32,
-        channels: u16,
-        fetch_buffer_size: u32,
-        store_buffer_size: usize,
-    ) -> Result<Self> {
+    pub fn new(audio_settings: &AudioSettings) -> Result<Self> {
         let device = default_host()
             .default_input_device()
             .expect("No audio input devices available");
@@ -33,12 +28,15 @@ impl Stream {
         println!("Using audio device: {}", device);
 
         let config = StreamConfig {
-            channels,
-            sample_rate,
-            buffer_size: Fixed(fetch_buffer_size * channels as u32),
+            channels: audio_settings.channel_count,
+            sample_rate: audio_settings.sample_rate,
+            buffer_size: Fixed(
+                audio_settings.stream_buffer_size * audio_settings.channel_count as u32,
+            ),
         };
-        let buffer = Arc::new(Mutex::new(Waveform::new(store_buffer_size)));
+        let buffer = Arc::new(Mutex::new(Waveform::new(&audio_settings)));
         let buffer_clone = buffer.clone();
+        let channel_count = audio_settings.channel_count;
 
         let stream = {
             let res = device.build_input_stream(
@@ -48,7 +46,7 @@ impl Stream {
                         .lock()
                         .expect("Failed to lock audio waveform mutex");
                     buf.push_slice(
-                        data.chunks(channels as usize)
+                        data.chunks(channel_count as usize)
                             .map(|f| f.iter().sum::<f32>() / f.len() as f32)
                             .collect::<Vec<f32>>()
                             .as_slice(),
@@ -62,8 +60,10 @@ impl Stream {
                 Err(err) => {
                     if err.kind() == ErrorKind::UnsupportedConfig {
                         eprintln!(
-                            "Unsupported audio stream config: channels={}, fetch_buffer_size={}, sample_rate={}.",
-                            channels, fetch_buffer_size, sample_rate
+                            "Unsupported audio stream config: channel_count={}, stream_buffer_size={}, sample_rate={}.",
+                            audio_settings.channel_count,
+                            audio_settings.stream_buffer_size,
+                            audio_settings.sample_rate
                         );
                         eprintln!("Supported audio stream configs:");
                         for config in device
