@@ -1,7 +1,7 @@
 #ifndef LIB_PUSH_CONSTANTS
 #define LIB_PUSH_CONSTANTS
 
-#include <vulkano.glsl>
+#include "vko.glsl"
 
 layout(push_constant) uniform PushConstants {
     StorageBufferId global_buffer_id;
@@ -12,6 +12,8 @@ layout(push_constant) uniform PushConstants {
     StorageBufferId transform_buffer_id;
     
     StorageBufferId material_buffer_id;
+
+    SamplerId sampler_id;
 
     float panel_depth;
 };

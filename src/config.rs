@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Result, bail};
 use glam::{Vec2, Vec3};
@@ -13,14 +16,22 @@ use crate::{
 pub struct Config {
     pub audio: AudioSettings,
     pub transforms: HashMap<String, TransformConfig>,
+    #[serde(default)]
+    pub images: HashMap<String, String>,
     pub materials: HashMap<String, MaterialConfig>,
     pub panels: Vec<PanelConfig>,
     pub background_color: Vec3,
+
+    #[serde(skip)]
+    pub base_dir: PathBuf,
 }
 
 impl Config {
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
-        Ok(jsonc::read_jsonc_sync(path)?)
+        let path = path.as_ref();
+        let mut config: Self = jsonc::read_jsonc_sync(path)?;
+        config.base_dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
+        Ok(config)
     }
 }
 

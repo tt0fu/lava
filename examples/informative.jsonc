@@ -24,6 +24,14 @@
       "scale": { "screen": [1.0, 0.4] },
       "rotation": 0.0,
     },
+    "center": {
+      "center": { "screen": [0.5, 0.5] },
+      "scale": { "pixels": [100.0, 100.0] },
+      "rotation": 0.0,
+    },
+  },
+  "images": {
+    "logo": "./logo.png",
   },
   "materials": {
     "waveform": {
@@ -48,6 +56,12 @@
         "gain": [1.5, 2.0, 3.0, 8.0],
       },
     },
+    "logo": {
+      "shader": "image",
+      "parameters": {
+        "image": "logo",
+      },
+    },
   },
   "panels": [
     {
@@ -64,6 +78,11 @@
       "transform": "top strip",
       "material": "waveform",
       "order": 0,
+    },
+    {
+      "transform": "center",
+      "material": "logo",
+      "order": 1,
     },
   ],
   "background_color": [0.0, 0.0, 0.0],

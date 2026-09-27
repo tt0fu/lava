@@ -2,16 +2,21 @@ use glam::Vec4;
 use std::sync::Arc;
 use vulkano::{
     VulkanError,
+    buffer::{BufferCreateInfo, BufferUsage},
     device::{Device, Queue},
     format::Format,
-    image::{Image, ImageCreateInfo, ImageType, ImageUsage},
+    image::{
+        Image, ImageAspects, ImageCreateInfo, ImageLayout, ImageSubresourceLayers, ImageType,
+        ImageUsage, sampler::SamplerCreateInfo, view::ImageViewCreateInfo,
+    },
     instance::Instance,
-    memory::allocator::AllocationCreateInfo,
+    memory::allocator::{AllocationCreateInfo, DeviceLayout, MemoryTypeFilter},
     pipeline::graphics::viewport::Viewport,
     swapchain::{Surface, Swapchain, SwapchainCreateInfo},
 };
 use vulkano_taskgraph::{
     Id, QueueFamilyType,
+    command_buffer::{BufferImageCopy, CopyBufferToImageInfo},
     graph::{AttachmentInfo, CompileInfo, ExecutableTaskGraph, ExecuteError, TaskGraph},
     resource::{AccessTypes, Flight, HostAccessType, ImageLayoutType, Resources},
     resource_map,
@@ -24,6 +29,7 @@ use crate::{
         app::MIN_SWAPCHAIN_IMAGES,
         buffers::{Buffers, StorageBuffers},
         global_parameters::GlobalParameters,
+        parameters::ImageIds,
         scene_data::SceneData,
         shaders,
         tasks::{
@@ -134,7 +140,78 @@ impl RenderContext {
         );
 
         if audio_settings.dft_bin_count > 8192 {
-            panic!("dft bin count too high: {}, highest supported is 8192", audio_settings.dft_bin_count);
+            panic!(
+                "dft bin count too high: {}, highest supported is 8192",
+                audio_settings.dft_bin_count
+            );
+        }
+
+        let mut staging_buffer_ids = Vec::new();
+        let mut image_ids = Vec::new();
+        for image in &scene_data.images {
+            let staging_buffer_id = resources
+                .create_buffer(
+                    &BufferCreateInfo {
+                        usage: BufferUsage::TRANSFER_SRC,
+                        ..Default::default()
+                    },
+                    &AllocationCreateInfo {
+                        memory_type_filter: MemoryTypeFilter::PREFER_HOST
+                            | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                        ..Default::default()
+                    },
+                    DeviceLayout::from_size_alignment(image.data.len() as u64, 1).unwrap(),
+                )
+                .unwrap();
+            let image_id = resources
+                .create_image(
+                    &ImageCreateInfo {
+                        image_type: ImageType::Dim2d,
+                        format: Format::R8G8B8A8_UNORM,
+                        extent: [image.width, image.height, 1],
+                        usage: ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
+                        ..Default::default()
+                    },
+                    &AllocationCreateInfo::default(),
+                )
+                .unwrap();
+            staging_buffer_ids.push(staging_buffer_id);
+            image_ids.push(image_id);
+        }
+
+        let bcx = resources.bindless_context().unwrap();
+
+        let sampler_id = bcx
+            .global_set()
+            .create_sampler(&SamplerCreateInfo::simple_repeat_linear())
+            .unwrap();
+
+        let sampled_image_ids = image_ids
+            .iter()
+            .map(|&image_id| {
+                let image_state = resources.image(image_id);
+                let create_info = ImageViewCreateInfo::from_image(image_state.image());
+                bcx.global_set()
+                    .create_sampled_image(
+                        image_id,
+                        &create_info,
+                        ImageLayout::ShaderReadOnlyOptimal,
+                    )
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        let image_bindings: ImageIds = scene_data
+            .images
+            .iter()
+            .map(|image| image.name.clone())
+            .zip(sampled_image_ids.iter().copied())
+            .collect();
+        for material in &scene_data.materials {
+            material
+                .parameters
+                .resolve_images(&image_bindings)
+                .expect("image parameters were validated while parsing the config");
         }
 
         unsafe {
@@ -142,7 +219,7 @@ impl RenderContext {
                 queue,
                 resources,
                 flight_id,
-                |_cbf, tcx| {
+                |cbf, tcx| {
                     for i in 0..scene_data.materials.len() {
                         scene_data.materials[i]
                             .parameters
@@ -165,6 +242,28 @@ impl RenderContext {
                     bands_guard.chrono = Vec4::ZERO.into();
                     bands_guard.start = (audio_settings.bands_history_length as u32 - 1).into();
 
+                    for (image, &staging_buffer_id) in
+                        scene_data.images.iter().zip(&staging_buffer_ids)
+                    {
+                        tcx.write_buffer::<[u8]>(staging_buffer_id, ..)
+                            .copy_from_slice(&image.data);
+                    }
+                    for (i, image) in scene_data.images.iter().enumerate() {
+                        cbf.copy_buffer_to_image(&CopyBufferToImageInfo {
+                            src_buffer: staging_buffer_ids[i],
+                            dst_image: image_ids[i],
+                            regions: &[BufferImageCopy {
+                                image_subresource: ImageSubresourceLayers {
+                                    aspects: ImageAspects::COLOR,
+                                    ..Default::default()
+                                },
+                                image_extent: [image.width, image.height, 1],
+                                ..Default::default()
+                            }],
+                            ..Default::default()
+                        });
+                    }
+
                     Ok(())
                 },
                 buffers
@@ -174,9 +273,22 @@ impl RenderContext {
                     .chain([
                         (buffers.dft, HostAccessType::Write),
                         (buffers.bands, HostAccessType::Write),
-                    ]),
-                [],
-                [],
+                    ])
+                    .chain(
+                        staging_buffer_ids
+                            .iter()
+                            .map(|&id| (id, HostAccessType::Write)),
+                    ),
+                staging_buffer_ids
+                    .iter()
+                    .map(|&id| (id, AccessTypes::COPY_TRANSFER_READ)),
+                image_ids.iter().map(|&id| {
+                    (
+                        id,
+                        AccessTypes::COPY_TRANSFER_WRITE,
+                        ImageLayoutType::Optimal,
+                    )
+                }),
             )
         }
         .unwrap();
@@ -187,8 +299,6 @@ impl RenderContext {
             .transforms
             .iter()
             .for_each(|&id| task_graph.add_host_buffer_access(id, HostAccessType::Write));
-
-        let bcx = resources.bindless_context().unwrap();
 
         let storage_buffers = StorageBuffers::new(bcx, &buffers);
 
@@ -210,7 +320,11 @@ impl RenderContext {
                 ),
             )
             .buffer_access(buffers.waveform, AccessTypes::COMPUTE_SHADER_STORAGE_READ)
-            .buffer_access(buffers.dft, AccessTypes::COMPUTE_SHADER_STORAGE_WRITE)
+            .buffer_access(
+                buffers.dft,
+                AccessTypes::COMPUTE_SHADER_STORAGE_READ
+                    | AccessTypes::COMPUTE_SHADER_STORAGE_WRITE,
+            )
             .build();
 
         let analysis_node_id = task_graph
@@ -226,24 +340,31 @@ impl RenderContext {
             )
             .buffer_access(buffers.global, AccessTypes::COMPUTE_SHADER_STORAGE_READ)
             .buffer_access(buffers.dft, AccessTypes::COMPUTE_SHADER_STORAGE_READ)
-            .buffer_access(buffers.bands, AccessTypes::COMPUTE_SHADER_STORAGE_READ)
-            .buffer_access(buffers.bands, AccessTypes::COMPUTE_SHADER_STORAGE_WRITE)
-            .buffer_access(buffers.waveform, AccessTypes::COMPUTE_SHADER_STORAGE_WRITE)
+            .buffer_access(
+                buffers.bands,
+                AccessTypes::COMPUTE_SHADER_STORAGE_READ
+                    | AccessTypes::COMPUTE_SHADER_STORAGE_WRITE,
+            )
+            .buffer_access(
+                buffers.waveform,
+                AccessTypes::COMPUTE_SHADER_STORAGE_READ
+                    | AccessTypes::COMPUTE_SHADER_STORAGE_WRITE,
+            )
             .build();
 
-        let render_node_id = task_graph
-            .create_task_node(
-                "render",
-                QueueFamilyType::Graphics,
-                RenderTask::new(
-                    resources,
-                    queue,
-                    flight_id,
-                    scene_data,
-                    virtual_swapchain_id,
-                    virtual_depth_buffer_id,
-                ),
-            )
+        let mut render_node = task_graph.create_task_node(
+            "render",
+            QueueFamilyType::Graphics,
+            RenderTask::new(
+                resources,
+                queue,
+                flight_id,
+                scene_data,
+                virtual_swapchain_id,
+                virtual_depth_buffer_id,
+            ),
+        );
+        render_node
             .framebuffer(virtual_framebuffer_id)
             .depth_stencil_attachment(
                 virtual_depth_buffer_id,
@@ -267,8 +388,24 @@ impl RenderContext {
             .buffer_access(buffers.global, AccessTypes::FRAGMENT_SHADER_STORAGE_READ)
             .buffer_access(buffers.waveform, AccessTypes::FRAGMENT_SHADER_STORAGE_READ)
             .buffer_access(buffers.dft, AccessTypes::FRAGMENT_SHADER_STORAGE_READ)
-            .buffer_access(buffers.bands, AccessTypes::FRAGMENT_SHADER_STORAGE_READ)
-            .build();
+            .buffer_access(buffers.bands, AccessTypes::FRAGMENT_SHADER_STORAGE_READ);
+        for &transform_id in &buffers.transforms {
+            render_node.buffer_access(
+                transform_id,
+                AccessTypes::VERTEX_SHADER_STORAGE_READ | AccessTypes::FRAGMENT_SHADER_STORAGE_READ,
+            );
+        }
+        for &material_id in &buffers.materials {
+            render_node.buffer_access(material_id, AccessTypes::FRAGMENT_SHADER_STORAGE_READ);
+        }
+        for &image_id in &image_ids {
+            render_node.image_access(
+                image_id,
+                AccessTypes::FRAGMENT_SHADER_SAMPLED_READ,
+                ImageLayoutType::Optimal,
+            );
+        }
+        let render_node_id = render_node.build();
 
         task_graph.add_edge(write_node_id, dft_node_id).unwrap();
         task_graph.add_edge(dft_node_id, analysis_node_id).unwrap();
@@ -293,7 +430,14 @@ impl RenderContext {
             .task_mut()
             .downcast_mut::<RenderTask>()
             .unwrap()
-            .create_render_data(device, bcx, &storage_buffers, scene_data, &subpass);
+            .create_render_data(
+                device,
+                bcx,
+                &storage_buffers,
+                scene_data,
+                &subpass,
+                sampler_id,
+            );
 
         let recreate_swapchain = false;
         let rewrite_transforms = true;

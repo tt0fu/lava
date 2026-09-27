@@ -22,7 +22,7 @@ use vulkano::{
 use vulkano_taskgraph::{
     ClearValues, Id, Task, TaskContext,
     command_buffer::RecordingCommandBuffer,
-    descriptor_set::BindlessContext,
+    descriptor_set::{BindlessContext, SamplerId},
     resource::{Flight, HostAccessType, Resources},
 };
 
@@ -106,6 +106,7 @@ impl RenderTask {
         storage_buffers: &StorageBuffers,
         scene_data: &Arc<SceneData>,
         subpass: &Subpass,
+        sampler_id: SamplerId,
     ) {
         let vertex_shader = unsafe { shaders::load_vertex(device) }
             .unwrap()
@@ -133,7 +134,7 @@ impl RenderTask {
         let pushes = scene_data
             .panels
             .iter()
-            .map(|p| storage_buffers.push_constants(p, min_order, max_order))
+            .map(|p| storage_buffers.push_constants(p, min_order, max_order, sampler_id))
             .collect::<Vec<shaders::PushConstants>>();
 
         let mut panels_per_pipeline = vec![vec![]; scene_data.shaders.len()];

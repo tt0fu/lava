@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use glam::Vec3;
 use vulkano::{device::Device, shader::EntryPoint};
 
@@ -8,8 +8,8 @@ use crate::{
     config::Config,
     video::{
         material_parameters::{
-            BandsParameters, ClockParameters, SimpleParameters, SpectrogramParameters,
-            WaveformParameters,
+            BandsParameters, ClockParameters, ImageParameters, SimpleParameters,
+            SpectrogramParameters, WaveformParameters,
         },
         parameters::Parameters,
         shaders,
@@ -28,10 +28,19 @@ pub struct Panel {
     pub order: u32,
 }
 
+/// A decoded image, ready to be uploaded to the GPU as an RGBA8 texture.
+pub struct SceneImage {
+    pub name: String,
+    pub width: u32,
+    pub height: u32,
+    pub data: Vec<u8>,
+}
+
 /// All immutable runtime data the renderer needs to render the scene
 pub struct SceneData {
     pub shaders: Vec<EntryPoint>,
     pub transforms: Vec<Transform>,
+    pub images: Vec<SceneImage>,
     pub materials: Vec<Material>,
     pub panels: Vec<Panel>,
     pub background_color: Vec3,
@@ -39,6 +48,23 @@ pub struct SceneData {
 
 impl SceneData {
     pub fn new(device: &Arc<Device>, config: &Config) -> Result<Self> {
+        let mut image_ids = HashMap::new();
+        let mut images = Vec::new();
+        for (name, path) in &config.images {
+            let path = config.base_dir.join(path);
+            let image = image::open(&path)
+                .with_context(|| format!("failed to open image '{name}' at {}", path.display()))?
+                .to_rgba8();
+            let (width, height) = image.dimensions();
+            image_ids.insert(name.as_str(), images.len());
+            images.push(SceneImage {
+                name: name.clone(),
+                width,
+                height,
+                data: image.into_raw(),
+            });
+        }
+
         let mut transform_ids = HashMap::new();
         let mut transforms = Vec::new();
         for (name, transform) in &config.transforms {
@@ -63,9 +89,11 @@ impl SceneData {
                 }
             };
             material_ids.insert(name.as_str(), materials.len());
+            let parameters =
+                material_parameters(&material.shader, material.parameters.clone(), &image_ids)?;
             materials.push(Material {
                 shader_id,
-                parameters: material_parameters(&material.shader, material.parameters.clone())?,
+                parameters,
             });
         }
 
@@ -87,6 +115,7 @@ impl SceneData {
         Ok(Self {
             shaders,
             transforms,
+            images,
             materials,
             panels,
             background_color: config.background_color,
@@ -102,6 +131,7 @@ fn load_shader(device: &Arc<Device>, name: &str) -> Option<EntryPoint> {
             "waveform" => shaders::load_waveform(device),
             "spectrogram" => shaders::load_spectrogram(device),
             "bands" => shaders::load_bands(device),
+            "image" => shaders::load_image(device),
             _ => return None,
         }
     }
@@ -109,13 +139,28 @@ fn load_shader(device: &Arc<Device>, name: &str) -> Option<EntryPoint> {
     module.entry_point("main")
 }
 
-fn material_parameters(shader: &str, parameters: serde_json::Value) -> Result<Box<dyn Parameters>> {
-    Ok(match shader {
+fn material_parameters(
+    shader: &str,
+    parameters: serde_json::Value,
+    image_ids: &HashMap<&str, usize>,
+) -> Result<Box<dyn Parameters>> {
+    let parameters: Box<dyn Parameters> = match shader {
         "simple" => Box::new(serde_json::from_value::<SimpleParameters>(parameters)?),
         "clock" => Box::new(serde_json::from_value::<ClockParameters>(parameters)?),
         "waveform" => Box::new(serde_json::from_value::<WaveformParameters>(parameters)?),
         "spectrogram" => Box::new(serde_json::from_value::<SpectrogramParameters>(parameters)?),
         "bands" => Box::new(serde_json::from_value::<BandsParameters>(parameters)?),
+        "image" => {
+            let image_parameters = serde_json::from_value::<ImageParameters>(parameters)?;
+            if !image_ids.contains_key(image_parameters.image.as_str()) {
+                bail!(
+                    "material references unknown image '{}'",
+                    image_parameters.image
+                );
+            }
+            Box::new(image_parameters)
+        }
         _ => bail!("unknown shader '{shader}'"),
-    })
+    };
+    Ok(parameters)
 }

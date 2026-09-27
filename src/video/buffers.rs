@@ -4,7 +4,7 @@ use vulkano::{
 };
 use vulkano_taskgraph::{
     Id,
-    descriptor_set::{BindlessContext, StorageBufferId},
+    descriptor_set::{BindlessContext, SamplerId, StorageBufferId},
     resource::Resources,
 };
 
@@ -110,7 +110,13 @@ impl StorageBuffers {
         }
     }
 
-    pub fn push_constants(&self, panel: &Panel, min_order: u32, max_order: u32) -> PushConstants {
+    pub fn push_constants(
+        &self,
+        panel: &Panel,
+        min_order: u32,
+        max_order: u32,
+        sampler_id: SamplerId,
+    ) -> PushConstants {
         shaders::PushConstants {
             global_buffer_id: self.global,
             waveform_buffer_id: self.waveform,
@@ -119,6 +125,8 @@ impl StorageBuffers {
 
             transform_buffer_id: self.transforms[panel.transform_id],
             material_buffer_id: self.materials[panel.material_id],
+
+            sampler_id,
 
             panel_depth: (max_order - panel.order) as f32 / (max_order + 1 - min_order) as f32,
         }

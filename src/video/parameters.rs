@@ -1,8 +1,28 @@
+use std::collections::HashMap;
+
+use anyhow::{Result, anyhow};
 use vulkano::{
     buffer::{Buffer, BufferContents},
     memory::allocator::DeviceLayout,
 };
-use vulkano_taskgraph::{Id, TaskContext};
+use vulkano_taskgraph::{Id, TaskContext, descriptor_set::SampledImageId};
+
+pub struct ImageIds(HashMap<String, SampledImageId>);
+
+impl ImageIds {
+    pub fn get(&self, name: &str) -> Result<SampledImageId> {
+        self.0
+            .get(name)
+            .copied()
+            .ok_or_else(|| anyhow!("unknown image '{name}'"))
+    }
+}
+
+impl FromIterator<(String, SampledImageId)> for ImageIds {
+    fn from_iter<I: IntoIterator<Item = (String, SampledImageId)>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
 
 pub trait LayoutStatic {
     fn layout() -> DeviceLayout;
@@ -20,12 +40,20 @@ pub trait Write {
     fn write(&self, id: Id<Buffer>, tcx: &mut TaskContext<'_>);
 }
 
-pub trait Parameters: Layout + Write + Send + Sync {}
+pub trait Parameters: Layout + Write + Send + Sync {
+    fn resolve_images(&self, images: &ImageIds) -> Result<()>;
+}
+
 pub trait ParametersMut: Layout + WriteMut + Send + Sync {}
 
 pub trait TypedParameters: Send + Sync {
     type Content: BufferContents;
+
     fn get_content(&self) -> Self::Content;
+
+    fn resolve_images(&self, _images: &ImageIds) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl<T: LayoutStatic> Layout for T {
@@ -52,4 +80,8 @@ impl<T: TypedParameters> Write for T {
     }
 }
 
-impl<T: TypedParameters> Parameters for T {}
+impl<T: TypedParameters> Parameters for T {
+    fn resolve_images(&self, images: &ImageIds) -> Result<()> {
+        TypedParameters::resolve_images(self, images)
+    }
+}
