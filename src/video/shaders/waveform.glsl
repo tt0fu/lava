@@ -6,8 +6,9 @@
 #include "lib/waveform.glsl"
 #include "lib/in_out.glsl"
 
-VKO_DECLARE_STORAGE_BUFFER(material_buffer, WaveformParams {
-    vec3 col;
+VKO_DECLARE_STORAGE_BUFFER(material_buffer, WaveformParams{
+    vec4 background;
+    vec4 foreground;
     float line_width;
     float gain;
 })
@@ -60,5 +61,5 @@ void main() {
     float sample_index = UV.x * float(WAVEFORM.sample_count);
     float dist = wave_distance(waveform_get_stabilized_index(sample_index), 1.0 - UV.y);
     float val = fade(dist * float(WAVEFORM.sample_count) / MATERIAL.line_width);
-    COLOR = vec4(MATERIAL.col, val);
+    COLOR = mix(MATERIAL.background, MATERIAL.foreground, val);
 }

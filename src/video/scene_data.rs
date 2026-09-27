@@ -8,8 +8,7 @@ use crate::{
     config::Config,
     video::{
         material_parameters::{
-            BandsParameters, ClockParameters, ImageParameters, SimpleParameters,
-            SpectrogramParameters, WaveformParameters,
+            BandsParameters, ClockParameters, ImageParameters, PatternParameters, ColorParameters, SpectrogramParameters, WaveformParameters
         },
         parameters::Parameters,
         shaders,
@@ -126,12 +125,13 @@ impl SceneData {
 fn load_shader(device: &Arc<Device>, name: &str) -> Option<EntryPoint> {
     let module = unsafe {
         match name {
-            "simple" => shaders::load_simple(device),
+            "color" => shaders::load_color(device),
             "clock" => shaders::load_clock(device),
             "waveform" => shaders::load_waveform(device),
             "spectrogram" => shaders::load_spectrogram(device),
             "bands" => shaders::load_bands(device),
             "image" => shaders::load_image(device),
+            "pattern" => shaders::load_pattern(device),
             _ => return None,
         }
     }
@@ -145,7 +145,7 @@ fn material_parameters(
     image_ids: &HashMap<&str, usize>,
 ) -> Result<Box<dyn Parameters>> {
     let parameters: Box<dyn Parameters> = match shader {
-        "simple" => Box::new(serde_json::from_value::<SimpleParameters>(parameters)?),
+        "color" => Box::new(serde_json::from_value::<ColorParameters>(parameters)?),
         "clock" => Box::new(serde_json::from_value::<ClockParameters>(parameters)?),
         "waveform" => Box::new(serde_json::from_value::<WaveformParameters>(parameters)?),
         "spectrogram" => Box::new(serde_json::from_value::<SpectrogramParameters>(parameters)?),
@@ -159,7 +159,8 @@ fn material_parameters(
                 );
             }
             Box::new(image_parameters)
-        }
+        },
+        "pattern" => Box::new(serde_json::from_value::<PatternParameters>(parameters)?),
         _ => bail!("unknown shader '{shader}'"),
     };
     Ok(parameters)

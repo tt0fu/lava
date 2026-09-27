@@ -14,9 +14,13 @@ vulkano_shaders::shader! {
             ty: "compute",
             path: "src/video/shaders/compute/analysis.glsl",
         },
-        simple: {
+        color: {
             ty: "fragment",
-            path: "src/video/shaders/simple.glsl",
+            path: "src/video/shaders/color.glsl",
+        },
+        pattern: {
+            ty: "fragment",
+            path: "src/video/shaders/pattern.glsl",
         },
         clock: {
             ty: "fragment",

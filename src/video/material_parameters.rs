@@ -11,15 +11,42 @@ use crate::video::{
 };
 
 #[derive(Deserialize)]
-pub struct SimpleParameters {
-    pub value: f32,
+pub struct PatternParameters {
+    pub lightness: f32,
+    pub chroma: f32,
+    pub scale: f32,
+    pub repeats: f32,
+    pub warp_speed: f32,
+    pub scroll_speed: f32,
 }
 
-impl TypedParameters for SimpleParameters {
-    type Content = shaders::SimpleParams;
+impl TypedParameters for PatternParameters {
+    type Content = shaders::PatternParams;
 
     fn get_content(&self) -> Self::Content {
-        Self::Content { value: self.value }
+        Self::Content {
+            lightness: self.lightness.into(),
+            chroma: self.chroma.into(),
+            scale: self.scale.into(),
+            repeats: self.repeats.into(),
+            warp_speed: self.warp_speed.into(),
+            scroll_speed: self.scroll_speed.into(),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ColorParameters {
+    pub color: Vec4,
+}
+
+impl TypedParameters for ColorParameters {
+    type Content = shaders::ColorParams;
+
+    fn get_content(&self) -> Self::Content {
+        Self::Content {
+            color: self.color.into(),
+        }
     }
 }
 
@@ -42,7 +69,8 @@ impl TypedParameters for ClockParameters {
 
 #[derive(Deserialize)]
 pub struct WaveformParameters {
-    pub col: Vec3,
+    pub background: Vec4,
+    pub foreground: Vec4,
     pub line_width: f32,
     pub gain: f32,
 }
@@ -52,7 +80,8 @@ impl TypedParameters for WaveformParameters {
 
     fn get_content(&self) -> Self::Content {
         Self::Content {
-            col: self.col.into(),
+            background: self.background.into(),
+            foreground: self.foreground.into(),
             line_width: self.line_width,
             gain: self.gain,
         }
