@@ -55,7 +55,7 @@ impl SceneData {
                 Some(&id) => id,
                 None => {
                     let entry_point = load_shader(device, &material.shader)
-                        .ok_or_else(|| anyhow!("unknown shader `{}`", material.shader))?;
+                        .ok_or_else(|| anyhow!("unknown shader '{}'", material.shader))?;
                     let id = shaders.len();
                     shaders.push(entry_point);
                     shader_ids.insert(material.shader.as_str(), id);
@@ -72,11 +72,11 @@ impl SceneData {
         let mut panels = Vec::new();
         for panel in &config.panels {
             let transform_id = *transform_ids.get(panel.transform.as_str()).ok_or_else(|| {
-                anyhow!("panel references unknown transform `{}`", panel.transform)
+                anyhow!("panel references unknown transform '{}'", panel.transform)
             })?;
             let material_id = *material_ids
                 .get(panel.material.as_str())
-                .ok_or_else(|| anyhow!("panel references unknown material `{}`", panel.material))?;
+                .ok_or_else(|| anyhow!("panel references unknown material '{}'", panel.material))?;
             panels.push(Panel {
                 transform_id,
                 material_id,
@@ -116,6 +116,6 @@ fn material_parameters(shader: &str, parameters: serde_json::Value) -> Result<Bo
         "waveform" => Box::new(serde_json::from_value::<WaveformParameters>(parameters)?),
         "spectrogram" => Box::new(serde_json::from_value::<SpectrogramParameters>(parameters)?),
         "bands" => Box::new(serde_json::from_value::<BandsParameters>(parameters)?),
-        _ => bail!("unknown shader `{shader}`"),
+        _ => bail!("unknown shader '{shader}'"),
     })
 }
