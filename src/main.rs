@@ -1,20 +1,15 @@
-use lava::{audio::audio_settings::AudioSettings, video::app::App};
-use std::error::Error;
+use anyhow::Result;
+use lava::{config::Config, video::app::App};
 use winit::event_loop::EventLoop;
 
-fn main() -> Result<(), impl Error> {
-    // TODO parse jsonc
-    let audio_settings = AudioSettings {
-        sample_rate: 48000,
-        channel_count: 1,
-        stream_buffer_size: 256,
-        sample_count: 8192,
-        dft_bin_count: 2048,
-        bands_history_length: 1024,
-    };
+fn main() -> Result<()> {
+    let path = std::env::args().nth(1).expect("usage: lava <config.jsonc>");
+    let config = Config::load(path)?;
 
-    let event_loop = EventLoop::new().unwrap();
-    let mut app = App::new(&event_loop, audio_settings, false);
+    let debug = cfg!(debug_assertions) || cfg!(feature = "debug");
+    let event_loop = EventLoop::new()?;
+    let mut app = App::new(&event_loop, config, debug)?;
 
-    event_loop.run_app(&mut app)
+    event_loop.run_app(&mut app)?;
+    Ok(())
 }

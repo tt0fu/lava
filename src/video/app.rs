@@ -1,4 +1,6 @@
 use std::sync::Arc;
+
+use anyhow::Result;
 use vulkano::{
     VulkanLibrary,
     device::{
@@ -28,6 +30,7 @@ use winit::{
 
 use crate::{
     audio::{audio_settings::AudioSettings, stream::Stream},
+    config::Config,
     stats::frame_timer::FrameTimer,
     video::{render_context::RenderContext, scene_data::SceneData},
 };
@@ -53,7 +56,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(event_loop: &EventLoop<()>, audio_settings: AudioSettings, debug: bool) -> Self {
+    pub fn new(event_loop: &EventLoop<()>, config: Config, debug: bool) -> Result<Self> {
         let extensions = InstanceExtensions {
             ext_debug_utils: debug,
             ..InstanceExtensions::empty()
@@ -188,7 +191,7 @@ impl App {
         )
         .unwrap();
 
-        let scene_data = SceneData::new(&device);
+        let scene_data = SceneData::new(&device, &config)?;
 
         let queue = queues[0].clone();
         let resources = Resources::new(
@@ -201,19 +204,20 @@ impl App {
         .unwrap();
         let flight_id = resources.create_flight(MAX_FRAMES_IN_FLIGHT).unwrap();
         let render_context = None;
+        let audio_settings = Arc::new(config.audio);
         let stream = Arc::new(Stream::new(&audio_settings).unwrap());
-        App {
+        Ok(App {
             instance,
             device,
             queue,
             resources,
             flight_id,
             scene_data: Arc::new(scene_data),
-            audio_settings: Arc::new(audio_settings),
+            audio_settings,
             render_context,
             stream,
             frame_timer: FrameTimer::new(),
-        }
+        })
     }
 }
 

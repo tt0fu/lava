@@ -6,6 +6,9 @@ edition = "2024"
 [lints.rust]
 dead_code = "allow"
 
+[features]
+debug = []
+
 [dependencies]
 anyhow = "1"
 

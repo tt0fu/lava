@@ -1,7 +1,9 @@
 use glam::{Vec3, Vec4};
+use serde::Deserialize;
 
 use crate::video::{parameters::TypedParameters, shaders};
 
+#[derive(Deserialize)]
 pub struct SimpleParameters {
     pub value: f32,
 }
@@ -14,6 +16,7 @@ impl TypedParameters for SimpleParameters {
     }
 }
 
+#[derive(Deserialize)]
 pub struct ClockParameters {
     pub col: Vec3,
     pub speed: f32,
@@ -30,6 +33,7 @@ impl TypedParameters for ClockParameters {
     }
 }
 
+#[derive(Deserialize)]
 pub struct WaveformParameters {
     pub col: Vec3,
     pub line_width: f32,
@@ -48,6 +52,7 @@ impl TypedParameters for WaveformParameters {
     }
 }
 
+#[derive(Deserialize)]
 pub struct SpectrogramParameters {
     pub col: Vec3,
     pub gain: f32,
@@ -64,6 +69,7 @@ impl TypedParameters for SpectrogramParameters {
     }
 }
 
+#[derive(Deserialize)]
 pub struct BandsParameters {
     pub col: Vec3,
     pub gain: Vec4,

@@ -1,13 +1,21 @@
-use glam::{Vec3, vec2, vec3, vec4};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+
+use anyhow::{Result, anyhow, bail};
+use glam::Vec3;
 use vulkano::{device::Device, shader::EntryPoint};
 
-use crate::video::material_parameters::{
-    BandsParameters, SpectrogramParameters, WaveformParameters,
+use crate::{
+    config::Config,
+    video::{
+        material_parameters::{
+            BandsParameters, ClockParameters, SimpleParameters, SpectrogramParameters,
+            WaveformParameters,
+        },
+        parameters::Parameters,
+        shaders,
+        transform::Transform,
+    },
 };
-use crate::video::shaders;
-use crate::video::transform::{Unit, Vector, anchor};
-use crate::video::{parameters::Parameters, transform::Transform};
 
 pub struct Material {
     pub shader_id: usize, // index in the shaders vector
@@ -30,104 +38,84 @@ pub struct SceneData {
 }
 
 impl SceneData {
-    pub fn new(device: &Arc<Device>) -> Self {
-        // TODO parse jsonc
-        Self {
-            shaders: unsafe {
-                vec![
-                    shaders::load_simple(&device).unwrap(),
-                    shaders::load_clock(&device).unwrap(),
-                    shaders::load_waveform(&device).unwrap(),
-                    shaders::load_spectrogram(&device).unwrap(),
-                    shaders::load_bands(&device).unwrap(),
-                ]
-            }
-            .iter()
-            .map(|m| m.entry_point("main").unwrap())
-            .collect(),
-            transforms: vec![
-                Transform {
-                    // bottom strip
-                    anchor_type: anchor::BOTTOM_LEFT,
-                    anchor_position: Vector {
-                        value: vec2(0.0, 1.0),
-                        unit: Unit::Screen,
-                    },
-                    scale: Vector {
-                        value: vec2(1.0, 0.2),
-                        unit: Unit::Screen,
-                    },
-                    rotation: 0.0,
-                },
-                Transform {
-                    // middle strip
-                    anchor_type: anchor::BOTTOM_LEFT,
-                    anchor_position: Vector {
-                        value: vec2(0.0, 0.8),
-                        unit: Unit::Screen,
-                    },
-                    scale: Vector {
-                        value: vec2(1.0, 0.4),
-                        unit: Unit::Screen,
-                    },
-                    rotation: 0.0,
-                },
-                Transform {
-                    // top strip
-                    anchor_type: anchor::BOTTOM_LEFT,
-                    anchor_position: Vector {
-                        value: vec2(0.0, 0.4),
-                        unit: Unit::Screen,
-                    },
-                    scale: Vector {
-                        value: vec2(1.0, 0.4),
-                        unit: Unit::Screen,
-                    },
-                    rotation: 0.0,
-                },
-            ],
-            materials: vec![
-                Material {
-                    shader_id: 2,
-                    parameters: Box::new(WaveformParameters {
-                        col: vec3(1.0, 1.0, 1.0),
-                        line_width: 50.0,
-                        gain: 1.0,
-                    }),
-                },
-                Material {
-                    shader_id: 3,
-                    parameters: Box::new(SpectrogramParameters {
-                        col: vec3(1.0, 1.0, 1.0),
-                        gain: 2.0,
-                    }),
-                },
-                Material {
-                    shader_id: 4,
-                    parameters: Box::new(BandsParameters {
-                        col: vec3(1.0, 1.0, 1.0),
-                        gain: vec4(2.0, 2.0, 3.0, 8.0),
-                    }),
-                },
-            ],
-            panels: vec![
-                Panel {
-                    transform_id: 0,
-                    material_id: 2,
-                    order: 0,
-                },
-                Panel {
-                    transform_id: 1,
-                    material_id: 1,
-                    order: 0,
-                },
-                Panel {
-                    transform_id: 2,
-                    material_id: 0,
-                    order: 0,
-                },
-            ],
-            background_color: vec3(0.0, 0.0, 0.0),
+    pub fn new(device: &Arc<Device>, config: &Config) -> Result<Self> {
+        let mut transform_ids = HashMap::new();
+        let mut transforms = Vec::new();
+        for (name, transform) in &config.transforms {
+            transform_ids.insert(name.as_str(), transforms.len());
+            transforms.push(transform.to_transform()?);
+        }
+
+        let mut shader_ids: HashMap<&str, usize> = HashMap::new();
+        let mut shaders = Vec::new();
+        let mut material_ids = HashMap::new();
+        let mut materials = Vec::new();
+        for (name, material) in &config.materials {
+            let shader_id = match shader_ids.get(material.shader.as_str()) {
+                Some(&id) => id,
+                None => {
+                    let entry_point = load_shader(device, &material.shader)
+                        .ok_or_else(|| anyhow!("unknown shader `{}`", material.shader))?;
+                    let id = shaders.len();
+                    shaders.push(entry_point);
+                    shader_ids.insert(material.shader.as_str(), id);
+                    id
+                }
+            };
+            material_ids.insert(name.as_str(), materials.len());
+            materials.push(Material {
+                shader_id,
+                parameters: material_parameters(&material.shader, material.parameters.clone())?,
+            });
+        }
+
+        let mut panels = Vec::new();
+        for panel in &config.panels {
+            let transform_id = *transform_ids.get(panel.transform.as_str()).ok_or_else(|| {
+                anyhow!("panel references unknown transform `{}`", panel.transform)
+            })?;
+            let material_id = *material_ids
+                .get(panel.material.as_str())
+                .ok_or_else(|| anyhow!("panel references unknown material `{}`", panel.material))?;
+            panels.push(Panel {
+                transform_id,
+                material_id,
+                order: panel.order,
+            });
+        }
+
+        Ok(Self {
+            shaders,
+            transforms,
+            materials,
+            panels,
+            background_color: config.background_color,
+        })
+    }
+}
+
+fn load_shader(device: &Arc<Device>, name: &str) -> Option<EntryPoint> {
+    let module = unsafe {
+        match name {
+            "simple" => shaders::load_simple(device),
+            "clock" => shaders::load_clock(device),
+            "waveform" => shaders::load_waveform(device),
+            "spectrogram" => shaders::load_spectrogram(device),
+            "bands" => shaders::load_bands(device),
+            _ => return None,
         }
     }
+    .ok()?;
+    module.entry_point("main")
+}
+
+fn material_parameters(shader: &str, parameters: serde_json::Value) -> Result<Box<dyn Parameters>> {
+    Ok(match shader {
+        "simple" => Box::new(serde_json::from_value::<SimpleParameters>(parameters)?),
+        "clock" => Box::new(serde_json::from_value::<ClockParameters>(parameters)?),
+        "waveform" => Box::new(serde_json::from_value::<WaveformParameters>(parameters)?),
+        "spectrogram" => Box::new(serde_json::from_value::<SpectrogramParameters>(parameters)?),
+        "bands" => Box::new(serde_json::from_value::<BandsParameters>(parameters)?),
+        _ => bail!("unknown shader `{shader}`"),
+    })
 }

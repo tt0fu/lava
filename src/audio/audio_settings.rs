@@ -1,3 +1,6 @@
+use serde::Deserialize;
+
+#[derive(Deserialize)]
 pub struct AudioSettings {
     pub sample_rate: u32,
     pub channel_count: u16,
