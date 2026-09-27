@@ -7,7 +7,7 @@ use vulkano::{
 };
 
 use crate::{
-    config::Config,
+    config::{Config, MaterialConfig, MaterialRef, TransformRef},
     video::{
         material_parameters::{
             BandsParameters, ClockParameters, ColorParameters, ImageParameters, PatternParameters,
@@ -74,39 +74,49 @@ impl SceneData {
             transforms.push(transform.to_transform()?);
         }
 
-        let mut shader_ids: HashMap<&str, usize> = HashMap::new();
+        let mut shader_ids: HashMap<String, usize> = HashMap::new();
         let mut shaders = Vec::new();
         let mut material_ids = HashMap::new();
         let mut materials = Vec::new();
         for (name, material) in &config.materials {
-            let shader_id = match shader_ids.get(material.shader.as_str()) {
-                Some(&id) => id,
-                None => {
-                    let entry_point = load_shader(device, &material.shader)
-                        .ok_or_else(|| anyhow!("unknown shader '{}'", material.shader))?;
-                    let id = shaders.len();
-                    shaders.push(entry_point);
-                    shader_ids.insert(material.shader.as_str(), id);
-                    id
-                }
-            };
             material_ids.insert(name.as_str(), materials.len());
-            let parameters =
-                material_parameters(&material.shader, material.parameters.clone(), &image_ids)?;
-            materials.push(Material {
-                shader_id,
-                parameters,
-            });
+            materials.push(create_material(
+                device,
+                material,
+                &image_ids,
+                &mut shader_ids,
+                &mut shaders,
+            )?);
         }
 
         let mut panels = Vec::new();
         for panel in &config.panels {
-            let transform_id = *transform_ids.get(panel.transform.as_str()).ok_or_else(|| {
-                anyhow!("panel references unknown transform '{}'", panel.transform)
-            })?;
-            let material_id = *material_ids
-                .get(panel.material.as_str())
-                .ok_or_else(|| anyhow!("panel references unknown material '{}'", panel.material))?;
+            let transform_id = match &panel.transform {
+                TransformRef::Named(name) => *transform_ids
+                    .get(name.as_str())
+                    .ok_or_else(|| anyhow!("panel references unknown transform '{name}'"))?,
+                TransformRef::Inline(config) => {
+                    let id = transforms.len();
+                    transforms.push(config.to_transform()?);
+                    id
+                }
+            };
+            let material_id = match &panel.material {
+                MaterialRef::Named(name) => *material_ids
+                    .get(name.as_str())
+                    .ok_or_else(|| anyhow!("panel references unknown material '{name}'"))?,
+                MaterialRef::Inline(config) => {
+                    let id = materials.len();
+                    materials.push(create_material(
+                        device,
+                        config,
+                        &image_ids,
+                        &mut shader_ids,
+                        &mut shaders,
+                    )?);
+                    id
+                }
+            };
             panels.push(Panel {
                 transform_id,
                 material_id,
@@ -124,6 +134,31 @@ impl SceneData {
             background_color: config.background_color,
         })
     }
+}
+
+fn create_material(
+    device: &Arc<Device>,
+    config: &MaterialConfig,
+    image_ids: &HashMap<&str, usize>,
+    shader_ids: &mut HashMap<String, usize>,
+    shaders: &mut Vec<EntryPoint>,
+) -> Result<Material> {
+    let shader_id = match shader_ids.get(&config.shader) {
+        Some(&id) => id,
+        None => {
+            let entry_point = load_shader(device, &config.shader)
+                .ok_or_else(|| anyhow!("unknown shader '{}'", config.shader))?;
+            let id = shaders.len();
+            shaders.push(entry_point);
+            shader_ids.insert(config.shader.clone(), id);
+            id
+        }
+    };
+    let parameters = material_parameters(&config.shader, config.parameters.clone(), image_ids)?;
+    Ok(Material {
+        shader_id,
+        parameters,
+    })
 }
 
 fn load_shader(device: &Arc<Device>, name: &str) -> Option<EntryPoint> {

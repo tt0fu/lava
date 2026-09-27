@@ -16,9 +16,11 @@ use crate::{
 #[derive(Deserialize)]
 pub struct Config {
     pub audio: AudioSettings,
+    #[serde(default)]
     pub transforms: HashMap<String, TransformConfig>,
     #[serde(default)]
     pub images: HashMap<String, String>,
+    #[serde(default)]
     pub materials: HashMap<String, MaterialConfig>,
     pub panels: Vec<PanelConfig>,
     pub background_color: Vec3,
@@ -103,9 +105,23 @@ pub struct MaterialConfig {
 }
 
 #[derive(Deserialize)]
+#[serde(untagged)]
+pub enum TransformRef {
+    Named(String),
+    Inline(TransformConfig),
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum MaterialRef {
+    Named(String),
+    Inline(MaterialConfig),
+}
+
+#[derive(Deserialize)]
 pub struct PanelConfig {
-    pub transform: String,
-    pub material: String,
+    pub transform: TransformRef,
+    pub material: MaterialRef,
     pub order: u32,
     pub blend: BlendConfig,
 }
