@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::{Result, bail};
-use glam::{Vec2, Vec3};
+use glam::{Vec2, Vec4};
 use serde::Deserialize;
 use vulkano::pipeline::graphics::color_blend::{AttachmentBlend, BlendFactor, BlendOp};
 
@@ -22,8 +22,9 @@ pub struct Config {
     pub images: HashMap<String, String>,
     #[serde(default)]
     pub materials: HashMap<String, MaterialConfig>,
-    pub panels: Vec<PanelConfig>,
-    pub background_color: Vec3,
+    pub panels: ElementConfig,
+    #[serde(default)]
+    pub background_color: Vec4,
 
     #[serde(skip)]
     pub base_dir: PathBuf,
@@ -127,6 +128,24 @@ pub struct PanelConfig {
 }
 
 #[derive(Deserialize)]
+pub struct GroupConfig {
+    pub transform: TransformRef,
+    pub order: u32,
+    pub blend: BlendConfig,
+    #[serde(default)]
+    pub background: Vec4,
+    pub children: Vec<ElementConfig>,
+}
+
+/// A node of the panel tree: either a leaf panel (has `material`) or a group (has `children`).
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum ElementConfig {
+    Panel(PanelConfig),
+    Group(GroupConfig),
+}
+
+#[derive(Deserialize)]
 #[serde(untagged)]
 pub enum BlendConfig {
     Named(String),
@@ -190,6 +209,16 @@ fn named_blend(name: &str) -> Result<AttachmentBlend> {
         BlendFactor::Zero,
         BlendOp::Add,
     );
+    // Straight-alpha "over": color is weighted by the source alpha and the destination alpha
+    // accumulates `src_a + dst_a * (1 - src_a)`.
+    const OVER: AttachmentBlend = blend(
+        BlendFactor::SrcAlpha,
+        BlendFactor::OneMinusSrcAlpha,
+        BlendOp::Add,
+        BlendFactor::One,
+        BlendFactor::OneMinusSrcAlpha,
+        BlendOp::Add,
+    );
     const MULTIPLY: AttachmentBlend = blend(
         BlendFactor::DstColor,
         BlendFactor::Zero,
@@ -225,7 +254,7 @@ fn named_blend(name: &str) -> Result<AttachmentBlend> {
 
     Ok(match name {
         "replace" => REPLACE,
-        "normal" => AttachmentBlend::alpha(),
+        "normal" => OVER,
         "add" => AttachmentBlend::additive(),
         "ignore" => AttachmentBlend::ignore_source(),
         "multiply" => MULTIPLY,

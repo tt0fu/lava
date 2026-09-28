@@ -9,6 +9,18 @@
     "bands_history_delta": 0.005,
   },
   "transforms": {
+    "fullscreen": {
+      "anchor": "top left",
+      "position": [
+        [0.0, "w"],
+        [0.0, "h"],
+      ],
+      "scale": [
+        [1.0, "w"],
+        [1.0, "h"],
+      ],
+      "rotation": 0.0,
+    },
     "top strip": {
       "anchor": "top",
       "position": [
@@ -45,8 +57,7 @@
       ],
       "rotation": 0.0,
     },
-
-    "left": {
+    "left strip": {
       "anchor": "left",
       "position": [
         [0.0, "w"],
@@ -58,64 +69,39 @@
       ],
       "rotation": 0.0,
     },
-    "left top": {
-      "anchor": "bottom left",
-      "position": [
-        [0.0, "w"],
-        [0.5, "h"],
-      ],
-      "scale": [
-        [0.38, "w"],
-        [0.2, "h"],
-      ],
-      "rotation": 0.0,
-    },
-    "left bottom": {
-      "anchor": "bottom left",
-      "position": [
-        [0.0, "w"],
-        [0.5, "h"],
-      ],
-      "scale": [
-        [0.38, "w"],
-        [-0.2, "h"],
-      ],
-      "rotation": 0.0,
-    },
-
-    "right": {
-      "anchor": "right",
+    "right strip": {
+      "anchor": "left",
       "position": [
         [1.0, "w"],
         [0.5, "h"],
       ],
       "scale": [
-        [0.38, "w"],
+        [-0.38, "w"],
         [0.4, "h"],
       ],
       "rotation": 0.0,
     },
-    "right top": {
-      "anchor": "bottom left",
+    "top": {
+      "anchor": "bottom",
       "position": [
-        [1.0, "w"],
+        [0.5, "w"],
         [0.5, "h"],
       ],
       "scale": [
-        [-0.38, "w"],
-        [0.2, "h"],
+        [1.0, "w"],
+        [0.5, "h"],
       ],
       "rotation": 0.0,
     },
-    "right bottom": {
-      "anchor": "bottom left",
+    "bottom": {
+      "anchor": "bottom",
       "position": [
-        [1.0, "w"],
+        [0.5, "w"],
         [0.5, "h"],
       ],
       "scale": [
-        [-0.38, "w"],
-        [-0.2, "h"],
+        [1.0, "w"],
+        [-0.5, "h"],
       ],
       "rotation": 0.0,
     },
@@ -164,83 +150,125 @@
       },
     },
   },
-  "panels": [
-    {
-      "transform": "top strip",
-      "material": "pattern",
-      "order": 0,
-      "blend": "normal",
-    },
-    {
-      "transform": "top strip",
-      "material": "waveform",
-      "order": 1,
-      "blend": "multiply",
-    },
+  "panels": {
+    "transform": "fullscreen",
+    "order": 0,
+    "blend": "normal",
+    "background_color": [0.0, 0.0, 0.0, 1.0],
+    "children": [
+      {
+        "transform": "top strip",
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 1.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "waveform",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
 
-    {
-      "transform": "bottom strip",
-      "material": "pattern",
-      "order": 0,
-      "blend": "normal",
-    },
-    {
-      "transform": "bottom strip",
-      "material": "waveform",
-      "order": 1,
-      "blend": "multiply",
-    },
-
-    {
-      "transform": "left",
-      "material": "pattern",
-      "order": 0,
-      "blend": "normal",
-    },
-    {
-      "transform": "left top",
-      "material": "spectrogram",
-      "order": 1,
-      "blend": "multiply",
-    },
-    {
-      "transform": "left bottom",
-      "material": "spectrogram",
-      "order": 1,
-      "blend": "multiply",
-    },
-
-    {
-      "transform": "right",
-      "material": "pattern",
-      "order": 0,
-      "blend": "normal",
-    },
-    {
-      "transform": "right top",
-      "material": "spectrogram",
-      "order": 1,
-      "blend": "multiply",
-    },
-    {
-      "transform": "right bottom",
-      "material": "spectrogram",
-      "order": 1,
-      "blend": "multiply",
-    },
-
-    {
-      "transform": "center",
-      "material": "pattern",
-      "order": 0,
-      "blend": "normal",
-    },
-    {
-      "transform": "center",
-      "material": "logo",
-      "order": 1,
-      "blend": "multiply",
-    },
-  ],
-  "background_color": [0.0, 0.0, 0.0],
+      {
+        "transform": "bottom strip",
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 1.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "waveform",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        "transform": "center",
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 1.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "logo",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        "transform": "left strip",
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 1.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "top",
+            "material": "spectrogram",
+            "order": 1,
+            "blend": "multiply",
+          },
+          {
+            "transform": "bottom",
+            "material": "spectrogram",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        "transform": "right strip",
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 1.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "top",
+            "material": "spectrogram",
+            "order": 1,
+            "blend": "multiply",
+          },
+          {
+            "transform": "bottom",
+            "material": "spectrogram",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+    ],
+  },
 }

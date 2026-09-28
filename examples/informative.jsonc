@@ -45,6 +45,18 @@
       ],
       "rotation": 0.0,
     },
+    "fullscreen": {
+      "anchor": "top left",
+      "position": [
+        [0.0, "w"],
+        [0.0, "h"],
+      ],
+      "scale": [
+        [1.0, "w"],
+        [1.0, "h"],
+      ],
+      "rotation": 0.0,
+    },
   },
   "materials": {
     "waveform": {
@@ -73,25 +85,30 @@
       },
     },
   },
-  "panels": [
-    {
-      "transform": "bottom strip",
-      "material": "bands",
-      "order": 0,
-      "blend": "normal",
-    },
-    {
-      "transform": "middle strip",
-      "material": "spectrogram",
-      "order": 0,
-      "blend": "normal",
-    },
-    {
-      "transform": "top strip",
-      "material": "waveform",
-      "order": 0,
-      "blend": "normal",
-    },
-  ],
-  "background_color": [0.0, 0.0, 0.0],
+  "panels": {
+    "transform": "fullscreen",
+    "order": 0,
+    "blend": "normal",
+    "background_color": [0.0, 0.0, 0.0, 1.0],
+    "children": [
+      {
+        "transform": "bottom strip",
+        "material": "bands",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        "transform": "middle strip",
+        "material": "spectrogram",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        "transform": "top strip",
+        "material": "waveform",
+        "order": 0,
+        "blend": "normal",
+      },
+    ],
+  },
 }

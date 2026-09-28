@@ -13,7 +13,7 @@ use crate::{
     video::{
         global_parameters::GlobalParameters,
         parameters::Layout,
-        scene_data::{Panel, SceneData},
+        scene_data::{ResolvedPanel, SceneData},
         shaders::{self, ComputePushConstants, PushConstants},
     },
 };
@@ -32,6 +32,7 @@ impl Buffers {
     pub fn new(
         audio_settings: &AudioSettings,
         scene_data: &SceneData,
+        panel_count: usize,
         resources: &Resources,
         stream: &Stream,
         global_parameters: &GlobalParameters,
@@ -64,9 +65,7 @@ impl Buffers {
                 )
                 .unwrap(),
             ),
-            transforms: scene_data
-                .transforms
-                .iter()
+            transforms: (0..panel_count)
                 .map(|_| create_buffer(DeviceLayout::new_sized::<shaders::Transform>()))
                 .collect(),
             materials: scene_data
@@ -110,15 +109,20 @@ impl StorageBuffers {
         }
     }
 
-    pub fn push_constants(&self, panel: &Panel, sampler_id: SamplerId) -> PushConstants {
+    pub fn push_constants(
+        &self,
+        panel: &ResolvedPanel,
+        transform_index: usize,
+        sampler_id: SamplerId,
+    ) -> PushConstants {
         shaders::PushConstants {
             global_buffer_id: self.global,
             waveform_buffer_id: self.waveform,
             dft_buffer_id: self.dft,
             bands_buffer_id: self.bands,
 
-            transform_buffer_id: self.transforms[panel.transform_id],
-            material_buffer_id: self.materials[panel.material_id],
+            transform_buffer_id: self.transforms[transform_index],
+            material_buffer_id: self.materials[panel.material],
 
             sampler_id,
         }

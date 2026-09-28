@@ -2,9 +2,10 @@ use crate::video::{
     buffers::StorageBuffers,
     model::{MyVertex, VERTICES},
     render_context::RenderContext,
-    scene_data::SceneData,
+    scene_data::{ResolvedPanel, SceneData},
     shaders,
     tasks::create_pipeline::create_graphics_pipeline,
+    transform::transform_buffer,
 };
 use std::{slice, sync::Arc};
 use vulkano::{
@@ -105,6 +106,7 @@ impl RenderTask {
         bcx: &BindlessContext,
         storage_buffers: &StorageBuffers,
         scene_data: &Arc<SceneData>,
+        resolved: &[ResolvedPanel],
         subpass: &Subpass,
         sampler_id: SamplerId,
     ) {
@@ -128,16 +130,16 @@ impl RenderTask {
             .pipeline_layout_from_stages(all_stages.as_slice())
             .unwrap();
 
-        let pushes = scene_data
-            .panels
+        let pushes = resolved
             .iter()
-            .map(|p| storage_buffers.push_constants(p, sampler_id))
+            .enumerate()
+            .map(|(i, p)| storage_buffers.push_constants(p, i, sampler_id))
             .collect::<Vec<shaders::PushConstants>>();
 
         let mut pipeline_cache: Vec<(usize, AttachmentBlend, Arc<GraphicsPipeline>)> = Vec::new();
-        let mut panel_pipelines = Vec::with_capacity(scene_data.panels.len());
-        for panel in &scene_data.panels {
-            let shader_id = scene_data.materials[panel.material_id].shader_id;
+        let mut panel_pipelines = Vec::with_capacity(resolved.len());
+        for panel in resolved {
+            let shader_id = scene_data.materials[panel.material].shader_id;
             let pipeline = match pipeline_cache
                 .iter()
                 .find(|(cached_shader, cached_blend, _)| {
@@ -163,12 +165,8 @@ impl RenderTask {
             panel_pipelines.push(pipeline);
         }
 
-        let mut panel_order = (0..scene_data.panels.len()).collect::<Vec<_>>();
-        panel_order.sort_by_key(|&i| scene_data.panels[i].order);
-
-        let draws = panel_order
-            .iter()
-            .map(|&i| Draw {
+        let draws = (0..resolved.len())
+            .map(|i| Draw {
                 pipeline: panel_pipelines[i].clone(),
                 push_constants: pushes[i],
             })
@@ -182,7 +180,7 @@ impl Task for RenderTask {
     type World = RenderContext;
 
     fn clear_values(&self, clear_values: &mut ClearValues<'_>, _world: &Self::World) {
-        let bg: [f32; 3] = self.scene_data.background_color.into();
+        let bg: [f32; 4] = self.scene_data.background_color.into();
         clear_values.set(self.swapchain_id.current_image_id(), bg);
     }
 
@@ -196,12 +194,9 @@ impl Task for RenderTask {
             let pass_data = self.render_data.as_ref().unwrap();
 
             if rcx.rewrite_transforms {
-                for i in 0..self.scene_data.transforms.len() {
-                    self.scene_data.transforms[i].write(
-                        rcx.viewport.extent.into(),
-                        rcx.buffers.transforms[i],
-                        tcx,
-                    );
+                for (i, panel) in rcx.resolved.iter().enumerate() {
+                    *tcx.write_buffer(rcx.buffers.transforms[i], ..) =
+                        transform_buffer(panel.transform, panel.aspect_ratio);
                 }
             }
             cbf.set_viewport(0, slice::from_ref(&rcx.viewport));

@@ -1,13 +1,13 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{Context, Result, anyhow, bail};
-use glam::Vec3;
+use glam::{Mat3, Vec2, Vec4};
 use vulkano::{
     device::Device, pipeline::graphics::color_blend::AttachmentBlend, shader::EntryPoint,
 };
 
 use crate::{
-    config::{Config, MaterialConfig, MaterialRef, TransformRef},
+    config::{Config, ElementConfig, MaterialConfig, MaterialRef, TransformRef},
     video::{
         material_parameters::{
             BandsParameters, ClockParameters, ColorParameters, ImageParameters, PatternParameters,
@@ -15,7 +15,7 @@ use crate::{
         },
         parameters::Parameters,
         shaders,
-        transform::Transform,
+        transform::{Transform, to_ndc, unit_to_local},
     },
 };
 
@@ -24,13 +24,27 @@ pub struct Material {
     pub parameters: Box<dyn Parameters>,
 }
 
+pub enum Element {
+    Panel(Panel),
+    Group(Group),
+}
+
 pub struct Panel {
-    pub transform_id: usize, // index in the transforms vector
-    pub material_id: usize,  // index in the materials vector
+    pub transform: Transform,
+    pub material: usize, // index in the materials vector
     pub order: u32,
     pub blend: AttachmentBlend,
 }
 
+pub struct Group {
+    pub transform: Transform,
+    pub background: Vec4,
+    pub order: u32,
+    pub blend: AttachmentBlend,
+    pub children: Vec<Element>,
+}
+
+/// A decoded image, ready to be uploaded to the GPU as an RGBA8 texture.
 pub struct SceneImage {
     pub name: String,
     pub width: u32,
@@ -38,14 +52,24 @@ pub struct SceneImage {
     pub data: Vec<u8>,
 }
 
-/// All immutable runtime data the renderer needs to render the scene
+/// All immutable runtime data the renderer needs to render the scene.
 pub struct SceneData {
     pub shaders: Vec<EntryPoint>,
-    pub transforms: Vec<Transform>,
     pub images: Vec<SceneImage>,
     pub materials: Vec<Material>,
-    pub panels: Vec<Panel>,
-    pub background_color: Vec3,
+    pub background_color: Vec4,
+    /// The root element (`panels`).
+    pub root: Element,
+}
+
+/// A panel resolved against a concrete screen size: its matrix maps the unit quad to the screen's
+/// normalized device coordinates.
+pub struct ResolvedPanel {
+    pub transform: Mat3,
+    pub aspect_ratio: f32,
+    pub material: usize,
+    pub order: u32,
+    pub blend: AttachmentBlend,
 }
 
 impl SceneData {
@@ -67,11 +91,9 @@ impl SceneData {
             });
         }
 
-        let mut transform_ids = HashMap::new();
-        let mut transforms = Vec::new();
+        let mut transform_defs = HashMap::new();
         for (name, transform) in &config.transforms {
-            transform_ids.insert(name.as_str(), transforms.len());
-            transforms.push(transform.to_transform()?);
+            transform_defs.insert(name.clone(), transform.to_transform()?);
         }
 
         let mut shader_ids: HashMap<String, usize> = HashMap::new();
@@ -79,7 +101,7 @@ impl SceneData {
         let mut material_ids = HashMap::new();
         let mut materials = Vec::new();
         for (name, material) in &config.materials {
-            material_ids.insert(name.as_str(), materials.len());
+            material_ids.insert(name.clone(), materials.len());
             materials.push(create_material(
                 device,
                 material,
@@ -89,51 +111,152 @@ impl SceneData {
             )?);
         }
 
+        let root = build_element(
+            device,
+            &image_ids,
+            &transform_defs,
+            &material_ids,
+            &mut shader_ids,
+            &mut shaders,
+            &mut materials,
+            &config.panels,
+        )?;
+
+        Ok(Self {
+            shaders,
+            images,
+            materials,
+            background_color: config.background_color,
+            root,
+        })
+    }
+
+    /// Resolves the element tree against a concrete screen size into a flat, ordered list of
+    /// panels. (Group isolation is not implemented yet: groups only act as coordinate spaces and
+    /// ordering scopes, and every panel is drawn directly onto the screen.)
+    pub fn resolve(&self, screen_size: Vec2) -> Vec<ResolvedPanel> {
         let mut panels = Vec::new();
-        for panel in &config.panels {
-            let transform_id = match &panel.transform {
-                TransformRef::Named(name) => *transform_ids
-                    .get(name.as_str())
-                    .ok_or_else(|| anyhow!("panel references unknown transform '{name}'"))?,
-                TransformRef::Inline(config) => {
-                    let id = transforms.len();
-                    transforms.push(config.to_transform()?);
-                    id
-                }
-            };
-            let material_id = match &panel.material {
+        resolve_element(
+            &self.root,
+            screen_size,
+            Mat3::IDENTITY,
+            screen_size,
+            &mut panels,
+        );
+        panels
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_element(
+    device: &Arc<Device>,
+    image_ids: &HashMap<&str, usize>,
+    transform_defs: &HashMap<String, Transform>,
+    material_ids: &HashMap<String, usize>,
+    shader_ids: &mut HashMap<String, usize>,
+    shaders: &mut Vec<EntryPoint>,
+    materials: &mut Vec<Material>,
+    config: &ElementConfig,
+) -> Result<Element> {
+    match config {
+        ElementConfig::Panel(panel) => {
+            let material = match &panel.material {
                 MaterialRef::Named(name) => *material_ids
-                    .get(name.as_str())
+                    .get(name)
                     .ok_or_else(|| anyhow!("panel references unknown material '{name}'"))?,
-                MaterialRef::Inline(config) => {
+                MaterialRef::Inline(material) => {
                     let id = materials.len();
                     materials.push(create_material(
-                        device,
-                        config,
-                        &image_ids,
-                        &mut shader_ids,
-                        &mut shaders,
+                        device, material, image_ids, shader_ids, shaders,
                     )?);
                     id
                 }
             };
-            panels.push(Panel {
-                transform_id,
-                material_id,
+            Ok(Element::Panel(Panel {
+                transform: resolve_transform(&panel.transform, transform_defs)?,
+                material,
                 order: panel.order,
                 blend: panel.blend.to_blend()?,
+            }))
+        }
+        ElementConfig::Group(group) => {
+            let children = group
+                .children
+                .iter()
+                .map(|child| {
+                    build_element(
+                        device,
+                        image_ids,
+                        transform_defs,
+                        material_ids,
+                        shader_ids,
+                        shaders,
+                        materials,
+                        child,
+                    )
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(Element::Group(Group {
+                transform: resolve_transform(&group.transform, transform_defs)?,
+                background: group.background,
+                order: group.order,
+                blend: group.blend.to_blend()?,
+                children,
+            }))
+        }
+    }
+}
+
+fn resolve_transform(
+    config: &TransformRef,
+    transform_defs: &HashMap<String, Transform>,
+) -> Result<Transform> {
+    match config {
+        TransformRef::Named(name) => transform_defs
+            .get(name)
+            .copied()
+            .ok_or_else(|| anyhow!("references unknown transform '{name}'")),
+        TransformRef::Inline(config) => config.to_transform(),
+    }
+}
+
+fn resolve_element(
+    element: &Element,
+    parent_size: Vec2,
+    parent_local_to_abs: Mat3,
+    screen_size: Vec2,
+    panels: &mut Vec<ResolvedPanel>,
+) {
+    match element {
+        Element::Panel(panel) => {
+            let abs = parent_local_to_abs * panel.transform.matrix_px(parent_size);
+            panels.push(ResolvedPanel {
+                transform: to_ndc(Vec2::ZERO, screen_size) * abs,
+                aspect_ratio: panel.transform.aspect_ratio(parent_size),
+                material: panel.material,
+                order: panel.order,
+                blend: panel.blend.clone(),
             });
         }
-
-        Ok(Self {
-            shaders,
-            transforms,
-            images,
-            materials,
-            panels,
-            background_color: config.background_color,
-        })
+        Element::Group(group) => {
+            let abs = parent_local_to_abs * group.transform.matrix_px(parent_size);
+            let size = group.transform.size(parent_size);
+            let local_to_abs = abs * unit_to_local(size).inverse();
+            for child in sorted(&group.children) {
+                resolve_element(child, size, local_to_abs, screen_size, panels);
+            }
+        }
     }
+}
+
+/// Children of a group in draw order: by `order`, ties broken by config order.
+fn sorted(children: &[Element]) -> Vec<&Element> {
+    let mut children = children.iter().collect::<Vec<_>>();
+    children.sort_by_key(|element| match element {
+        Element::Panel(panel) => panel.order,
+        Element::Group(group) => group.order,
+    });
+    children
 }
 
 fn create_material(

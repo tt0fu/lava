@@ -31,7 +31,7 @@ use crate::{
         buffers::{Buffers, StorageBuffers},
         global_parameters::GlobalParameters,
         parameters::ImageIds,
-        scene_data::SceneData,
+        scene_data::{ResolvedPanel, SceneData},
         shaders,
         tasks::{
             analysis_task::AnalysisTask, dft_task::DftTask, render_task::RenderTask,
@@ -50,6 +50,10 @@ pub struct RenderContext {
     pub virtual_swapchain_id: Id<Swapchain>,
     pub global_parameters: GlobalParameters,
     pub stream: Arc<Stream>,
+
+    pub scene_data: Arc<SceneData>,
+    /// The scene resolved against the current window size.
+    pub resolved: Vec<ResolvedPanel>,
 
     pub buffers: Buffers,
 }
@@ -118,9 +122,15 @@ impl RenderContext {
 
         let global_parameters = GlobalParameters::new();
 
+        let resolved = scene_data.resolve(glam::vec2(
+            window_size.width as f32,
+            window_size.height as f32,
+        ));
+
         let buffers = Buffers::new(
             audio_settings,
             scene_data,
+            resolved.len(),
             resources,
             stream,
             &global_parameters,
@@ -418,6 +428,7 @@ impl RenderContext {
                 bcx,
                 &storage_buffers,
                 scene_data,
+                &resolved,
                 &subpass,
                 sampler_id,
             );
@@ -435,6 +446,8 @@ impl RenderContext {
             buffers,
             global_parameters,
             stream: stream.clone(),
+            scene_data: scene_data.clone(),
+            resolved,
         }
     }
 
@@ -451,6 +464,10 @@ impl RenderContext {
             .expect("failed to recreate swapchain");
 
         self.viewport.extent = window_size.into();
+        self.resolved = self.scene_data.resolve(glam::vec2(
+            window_size.width as f32,
+            window_size.height as f32,
+        ));
         self.recreate_swapchain = false;
     }
 

@@ -44,19 +44,24 @@
       },
     },
   },
-  "panels": [
-    {
-      "transform": "fullscreen",
-      "material": "pattern",
-      "order": 0,
-      "blend": "normal",
-    },
-    {
-      "transform": "fullscreen",
-      "material": "waveform",
-      "order": 1,
-      "blend": "multiply",
-    },
-  ],
-  "background_color": [0.0, 0.0, 0.0],
+  "panels": {
+    "transform": "fullscreen",
+    "order": 0,
+    "blend": "normal",
+    "children": [
+      {
+        "transform": "fullscreen",
+        "material": "pattern",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        "transform": "fullscreen",
+        "material": "waveform",
+        "order": 1,
+        "blend": "multiply",
+      },
+    ],
+  },
+  "background_color": [0.0, 0.0, 0.0, 1.0],
 }
