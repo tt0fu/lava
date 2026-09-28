@@ -132,8 +132,8 @@ pub struct GroupConfig {
     pub transform: TransformRef,
     pub order: u32,
     pub blend: BlendConfig,
-    #[serde(default)]
-    pub background: Vec4,
+    #[serde(default, alias = "background")]
+    pub background_color: Vec4,
     pub children: Vec<ElementConfig>,
 }
 

@@ -42,5 +42,9 @@ vulkano_shaders::shader! {
             ty: "fragment",
             path: "src/video/shaders/image.glsl",
         },
+        group: {
+            ty: "fragment",
+            path: "src/video/shaders/group.glsl",
+        },
     },
 }

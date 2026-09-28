@@ -1,27 +1,31 @@
-use glam::Vec4;
+use glam::{Vec2, Vec4};
 use std::sync::Arc;
 use vulkano::{
     VulkanError,
-    buffer::{BufferCreateInfo, BufferUsage},
+    buffer::{Buffer, BufferCreateInfo, BufferUsage},
     device::{Device, Queue},
     format::Format,
     image::{
-        ImageAspects, ImageCreateInfo, ImageLayout, ImageSubresourceLayers, ImageType, ImageUsage,
+        Image, ImageAspects, ImageCreateInfo, ImageLayout, ImageSubresourceLayers, ImageType,
+        ImageUsage,
         sampler::{Filter, SamplerAddressMode, SamplerCreateInfo, SamplerMipmapMode},
         view::ImageViewCreateInfo,
     },
     instance::Instance,
     memory::allocator::{AllocationCreateInfo, DeviceLayout, MemoryTypeFilter},
-    pipeline::graphics::viewport::Viewport,
+    pipeline::{PipelineShaderStageCreateInfo, graphics::viewport::Viewport},
     swapchain::{Surface, Swapchain, SwapchainCreateInfo},
 };
 use vulkano_taskgraph::{
     Id, QueueFamilyType,
     command_buffer::{BufferImageCopy, CopyBufferToImageInfo},
-    graph::{AttachmentInfo, CompileInfo, ExecutableTaskGraph, ExecuteError, TaskGraph},
+    descriptor_set::SampledImageId,
+    graph::{
+        AttachmentInfo, CompileInfo, ExecutableTaskGraph, ExecuteError, ResourceMap, TaskGraph,
+    },
     resource::{AccessTypes, Flight, HostAccessType, ImageLayoutType, Resources},
-    resource_map,
 };
+
 use winit::{event_loop::ActiveEventLoop, window::Window};
 
 use crate::{
@@ -29,12 +33,16 @@ use crate::{
     video::{
         app::MIN_SWAPCHAIN_IMAGES,
         buffers::{Buffers, StorageBuffers},
+        geometry::{ResolvedChild, ResolvedScene},
         global_parameters::GlobalParameters,
+        model::{MyVertex, VERTICES},
         parameters::ImageIds,
-        scene_data::{ResolvedPanel, SceneData},
+        scene_data::SceneData,
         shaders,
         tasks::{
-            analysis_task::AnalysisTask, dft_task::DftTask, render_task::RenderTask,
+            analysis_task::AnalysisTask,
+            dft_task::DftTask,
+            render_task::{RenderTask, Target},
             write_task::WriteTask,
         },
     },
@@ -51,9 +59,20 @@ pub struct RenderContext {
     pub global_parameters: GlobalParameters,
     pub stream: Arc<Stream>,
 
+    pub queue: Arc<Queue>,
+    pub flight_id: Id<Flight>,
+
     pub scene_data: Arc<SceneData>,
     /// The scene resolved against the current window size.
-    pub resolved: Vec<ResolvedPanel>,
+    pub resolved: ResolvedScene,
+    /// Physical offscreen target per group (`None` for the screen group).
+    pub target_physical: Vec<Option<Id<Image>>>,
+    /// Virtual offscreen target per group (`None` for the screen group).
+    pub virtual_target: Vec<Option<Id<Image>>>,
+    /// Bindless sampled image per group target (`None` for the screen group).
+    pub target_sampled: Vec<Option<SampledImageId>>,
+    /// Index into `buffers.materials` of each group's `GroupParams` buffer (`None` for the screen).
+    pub group_material: Vec<Option<usize>>,
 
     pub buffers: Buffers,
 }
@@ -77,6 +96,7 @@ impl RenderContext {
         );
         let surface = Surface::from_window(instance, &window).unwrap();
         let window_size = window.inner_size();
+        let screen_size = Vec2::new(window_size.width as f32, window_size.height as f32);
         let swapchain_format;
         let swapchain_id = {
             let surface_capabilities = device
@@ -113,28 +133,63 @@ impl RenderContext {
             min_depth: 0.0,
             max_depth: 1.0,
         };
+
+        let resolved = ResolvedScene::new(scene_data, screen_size);
+
+        // Transform buffers: one per panel plus one per composite group (all groups except the
+        // screen group).
+        let transform_count = resolved.panels.len() + resolved.groups.len() - 1;
+
+        let global_parameters = GlobalParameters::new();
+        let mut buffers = Buffers::new(
+            audio_settings,
+            scene_data,
+            transform_count,
+            resources,
+            stream,
+            &global_parameters,
+        );
+
+        // One `GroupParams` buffer per composite group, appended after the config materials.
+        let group_params_layout = DeviceLayout::new_sized::<shaders::GroupParams>();
+        let mut group_material = vec![None; resolved.groups.len()];
+        for group in 1..resolved.groups.len() {
+            let id = resources
+                .create_buffer(
+                    &BufferCreateInfo {
+                        usage: BufferUsage::STORAGE_BUFFER,
+                        ..Default::default()
+                    },
+                    &AllocationCreateInfo {
+                        memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                            | MemoryTypeFilter::HOST_RANDOM_ACCESS,
+                        ..Default::default()
+                    },
+                    group_params_layout,
+                )
+                .unwrap();
+            group_material[group] = Some(buffers.materials.len());
+            buffers.materials.push(id);
+        }
+
         let mut task_graph = TaskGraph::new(resources);
         let virtual_swapchain_id = task_graph.add_swapchain(&SwapchainCreateInfo {
             image_format: swapchain_format,
             ..Default::default()
         });
-        let virtual_framebuffer_id = task_graph.add_framebuffer();
 
-        let global_parameters = GlobalParameters::new();
-
-        let resolved = scene_data.resolve(glam::vec2(
-            window_size.width as f32,
-            window_size.height as f32,
-        ));
-
-        let buffers = Buffers::new(
-            audio_settings,
-            scene_data,
-            resolved.len(),
-            resources,
-            stream,
-            &global_parameters,
-        );
+        // Virtual offscreen targets.
+        let mut virtual_target = vec![None; resolved.groups.len()];
+        for group in 1..resolved.groups.len() {
+            let size = resolved.groups[group].aabb_size;
+            virtual_target[group] = Some(task_graph.add_image(&ImageCreateInfo {
+                image_type: ImageType::Dim2d,
+                format: swapchain_format,
+                extent: [size.x.max(1.0) as u32, size.y.max(1.0) as u32, 1],
+                usage: ImageUsage::COLOR_ATTACHMENT | ImageUsage::SAMPLED,
+                ..Default::default()
+            }));
+        }
 
         if audio_settings.dft_bin_count > 8192 {
             panic!(
@@ -143,6 +198,7 @@ impl RenderContext {
             );
         }
 
+        // Config image staging buffers and images.
         let mut staging_buffer_ids = Vec::new();
         let mut image_ids = Vec::new();
         for image in &scene_data.images {
@@ -216,6 +272,26 @@ impl RenderContext {
                 .parameters
                 .resolve_images(&image_bindings)
                 .expect("image parameters were validated while parsing the config");
+        }
+
+        // Offscreen group targets.
+        let mut target_physical = vec![None; resolved.groups.len()];
+        let mut target_sampled = vec![None; resolved.groups.len()];
+        for group in 1..resolved.groups.len() {
+            let size = resolved.groups[group].aabb_size;
+            let image_id = create_target(resources, swapchain_format, size);
+            let image_state = resources.image(image_id);
+            let create_info = ImageViewCreateInfo::from_image(image_state.image());
+            target_sampled[group] = Some(
+                bcx.global_set()
+                    .create_sampled_image(
+                        image_id,
+                        &create_info,
+                        ImageLayout::ShaderReadOnlyOptimal,
+                    )
+                    .unwrap(),
+            );
+            target_physical[group] = Some(image_id);
         }
 
         unsafe {
@@ -303,15 +379,44 @@ impl RenderContext {
             .transforms
             .iter()
             .for_each(|&id| task_graph.add_host_buffer_access(id, HostAccessType::Write));
+        // The group params buffers are host-written by the render task (like the transforms).
+        for group in 1..resolved.groups.len() {
+            let material = group_material[group].unwrap();
+            task_graph.add_host_buffer_access(buffers.materials[material], HostAccessType::Write);
+        }
 
         let storage_buffers = StorageBuffers::new(bcx, &buffers);
+
+        // Shared pipeline layout (union of all fragment shaders plus the composite shader).
+        let vertex_shader = unsafe { shaders::load_vertex(device) }
+            .unwrap()
+            .entry_point("main")
+            .unwrap();
+        let group_shader = unsafe { shaders::load_group(device) }
+            .unwrap()
+            .entry_point("main")
+            .unwrap();
+        let all_stages = std::iter::once(PipelineShaderStageCreateInfo::new(&vertex_shader))
+            .chain(
+                scene_data
+                    .shaders
+                    .iter()
+                    .map(PipelineShaderStageCreateInfo::new),
+            )
+            .chain(std::iter::once(PipelineShaderStageCreateInfo::new(
+                &group_shader,
+            )))
+            .collect::<Vec<_>>();
+        let layout = bcx.pipeline_layout_from_stages(&all_stages).unwrap();
+
+        // Vertex buffer (shared by every group).
+        let vertex_buffer_id = create_vertex_buffer(resources, queue, flight_id);
 
         let write_node_id = task_graph
             .create_task_node("Write", QueueFamilyType::Compute, WriteTask {})
             .buffer_access(buffers.global, AccessTypes::COMPUTE_SHADER_STORAGE_WRITE)
             .buffer_access(buffers.waveform, AccessTypes::COMPUTE_SHADER_STORAGE_WRITE)
             .build();
-
         let dft_node_id = task_graph
             .create_task_node(
                 "Dft",
@@ -330,7 +435,6 @@ impl RenderContext {
                     | AccessTypes::COMPUTE_SHADER_STORAGE_WRITE,
             )
             .build();
-
         let analysis_node_id = task_graph
             .create_task_node(
                 "Analysis",
@@ -355,56 +459,87 @@ impl RenderContext {
                     | AccessTypes::COMPUTE_SHADER_STORAGE_WRITE,
             )
             .build();
+        task_graph.add_edge(write_node_id, dft_node_id).unwrap();
+        task_graph.add_edge(dft_node_id, analysis_node_id).unwrap();
 
-        let mut render_node = task_graph.create_task_node(
-            "render",
-            QueueFamilyType::Graphics,
-            RenderTask::new(
-                resources,
-                queue,
-                flight_id,
-                scene_data,
-                virtual_swapchain_id,
-            ),
-        );
-        render_node
-            .framebuffer(virtual_framebuffer_id)
-            .color_attachment(
-                virtual_swapchain_id.current_image_id(),
-                AccessTypes::COLOR_ATTACHMENT_WRITE,
+        // One render node per group.
+        let mut group_node_ids = vec![None; resolved.groups.len()];
+        for group in (0..resolved.groups.len()).rev() {
+            let info = &resolved.groups[group];
+            let target = if group == resolved.root {
+                Target::Swapchain(virtual_swapchain_id)
+            } else {
+                Target::Image(virtual_target[group].unwrap())
+            };
+            let background: [f32; 4] = info.background.into();
+            let framebuffer_id = task_graph.add_framebuffer();
+            let mut node = task_graph.create_task_node(
+                "Group",
+                QueueFamilyType::Graphics,
+                RenderTask::new(vertex_buffer_id, group, target, background),
+            );
+            node.framebuffer(framebuffer_id).color_attachment(
+                if group == resolved.root {
+                    virtual_swapchain_id.current_image_id()
+                } else {
+                    virtual_target[group].unwrap()
+                },
+                AccessTypes::COLOR_ATTACHMENT_READ | AccessTypes::COLOR_ATTACHMENT_WRITE,
                 ImageLayoutType::Optimal,
                 &AttachmentInfo {
                     clear: true,
                     ..Default::default()
                 },
-            )
-            .buffer_access(buffers.global, AccessTypes::FRAGMENT_SHADER_STORAGE_READ)
-            .buffer_access(buffers.waveform, AccessTypes::FRAGMENT_SHADER_STORAGE_READ)
-            .buffer_access(buffers.dft, AccessTypes::FRAGMENT_SHADER_STORAGE_READ)
-            .buffer_access(buffers.bands, AccessTypes::FRAGMENT_SHADER_STORAGE_READ);
-        for &transform_id in &buffers.transforms {
-            render_node.buffer_access(
-                transform_id,
-                AccessTypes::VERTEX_SHADER_STORAGE_READ | AccessTypes::FRAGMENT_SHADER_STORAGE_READ,
             );
+            // Reads.
+            for child in &info.children {
+                let (material, transform) = match child {
+                    ResolvedChild::Panel(i) => (resolved.panels[*i].material, *i),
+                    ResolvedChild::Group(g) => {
+                        (group_material[*g].unwrap(), resolved.panels.len() + (g - 1))
+                    }
+                };
+                node.buffer_access(
+                    buffers.transforms[transform],
+                    AccessTypes::VERTEX_SHADER_STORAGE_READ
+                        | AccessTypes::FRAGMENT_SHADER_STORAGE_READ,
+                );
+                node.buffer_access(
+                    buffers.materials[material],
+                    AccessTypes::FRAGMENT_SHADER_STORAGE_READ,
+                );
+            }
+            node.buffer_access(buffers.global, AccessTypes::FRAGMENT_SHADER_STORAGE_READ)
+                .buffer_access(buffers.waveform, AccessTypes::FRAGMENT_SHADER_STORAGE_READ)
+                .buffer_access(buffers.dft, AccessTypes::FRAGMENT_SHADER_STORAGE_READ)
+                .buffer_access(buffers.bands, AccessTypes::FRAGMENT_SHADER_STORAGE_READ);
+            for &image_id in &image_ids {
+                node.image_access(
+                    image_id,
+                    AccessTypes::FRAGMENT_SHADER_SAMPLED_READ,
+                    ImageLayoutType::Optimal,
+                );
+            }
+            for child in &info.children {
+                if let ResolvedChild::Group(g) = child {
+                    node.image_access(
+                        virtual_target[*g].unwrap(),
+                        AccessTypes::FRAGMENT_SHADER_SAMPLED_READ,
+                        ImageLayoutType::Optimal,
+                    );
+                }
+            }
+            let node_id = node.build();
+            group_node_ids[group] = Some(node_id);
+            task_graph.add_edge(analysis_node_id, node_id).unwrap();
+            for child in &info.children {
+                if let ResolvedChild::Group(g) = child {
+                    task_graph
+                        .add_edge(group_node_ids[*g].unwrap(), node_id)
+                        .unwrap();
+                }
+            }
         }
-        for &material_id in &buffers.materials {
-            render_node.buffer_access(material_id, AccessTypes::FRAGMENT_SHADER_STORAGE_READ);
-        }
-        for &image_id in &image_ids {
-            render_node.image_access(
-                image_id,
-                AccessTypes::FRAGMENT_SHADER_SAMPLED_READ,
-                ImageLayoutType::Optimal,
-            );
-        }
-        let render_node_id = render_node.build();
-
-        task_graph.add_edge(write_node_id, dft_node_id).unwrap();
-        task_graph.add_edge(dft_node_id, analysis_node_id).unwrap();
-        task_graph
-            .add_edge(analysis_node_id, render_node_id)
-            .unwrap();
 
         let mut task_graph = unsafe {
             task_graph.compile(&CompileInfo {
@@ -415,39 +550,46 @@ impl RenderContext {
             })
         }
         .unwrap();
-        let render_node = task_graph.task_node_mut(render_node_id).unwrap();
 
-        let subpass = render_node.subpass().unwrap().clone();
+        for group in 0..resolved.groups.len() {
+            let node = task_graph
+                .task_node_mut(group_node_ids[group].unwrap())
+                .unwrap();
+            let subpass = node.subpass().unwrap().clone();
+            node.task_mut()
+                .downcast_mut::<RenderTask>()
+                .unwrap()
+                .create_render_data(
+                    device,
+                    &layout,
+                    &storage_buffers,
+                    scene_data,
+                    &resolved,
+                    &group_shader,
+                    &subpass,
+                    sampler_id,
+                );
+        }
 
-        render_node
-            .task_mut()
-            .downcast_mut::<RenderTask>()
-            .unwrap()
-            .create_render_data(
-                device,
-                bcx,
-                &storage_buffers,
-                scene_data,
-                &resolved,
-                &subpass,
-                sampler_id,
-            );
-
-        let recreate_swapchain = false;
-        let rewrite_transforms = true;
         RenderContext {
             window,
             swapchain_id,
             viewport,
-            recreate_swapchain,
-            rewrite_transforms,
+            recreate_swapchain: false,
+            rewrite_transforms: true,
             task_graph,
             virtual_swapchain_id,
-            buffers,
             global_parameters,
             stream: stream.clone(),
+            queue: queue.clone(),
+            flight_id,
             scene_data: scene_data.clone(),
             resolved,
+            target_physical,
+            virtual_target,
+            target_sampled,
+            group_material,
+            buffers,
         }
     }
 
@@ -456,6 +598,7 @@ impl RenderContext {
             return;
         }
         let window_size = self.window.inner_size();
+        let screen_size = Vec2::new(window_size.width as f32, window_size.height as f32);
         self.swapchain_id = resources
             .recreate_swapchain(self.swapchain_id, |create_info| SwapchainCreateInfo {
                 image_extent: window_size.into(),
@@ -463,27 +606,68 @@ impl RenderContext {
             })
             .expect("failed to recreate swapchain");
 
+        self.resolved = ResolvedScene::new(&self.scene_data, screen_size);
+
+        // Recreate the offscreen targets and re-register their sampled images.
+        if let Some(bcx) = resources.bindless_context() {
+            let format = resources
+                .swapchain(self.swapchain_id)
+                .images()
+                .first()
+                .map(|image| image.format())
+                .unwrap_or(Format::R8G8B8A8_UNORM);
+            let mut batch = resources.create_deferred_batch();
+            for group in 1..self.resolved.groups.len() {
+                if let Some(old) = self.target_physical[group] {
+                    batch.destroy_image(old);
+                }
+            }
+            batch.enqueue();
+
+            for group in 1..self.resolved.groups.len() {
+                let size = self.resolved.groups[group].aabb_size;
+                let image_id = create_target(resources, format, size);
+                let image_state = resources.image(image_id);
+                let create_info = ImageViewCreateInfo::from_image(image_state.image());
+                self.target_sampled[group] = Some(
+                    bcx.global_set()
+                        .create_sampled_image(
+                            image_id,
+                            &create_info,
+                            ImageLayout::ShaderReadOnlyOptimal,
+                        )
+                        .unwrap(),
+                );
+                self.target_physical[group] = Some(image_id);
+            }
+        }
+
         self.viewport.extent = window_size.into();
-        self.resolved = self.scene_data.resolve(glam::vec2(
-            window_size.width as f32,
-            window_size.height as f32,
-        ));
+        self.rewrite_transforms = true;
         self.recreate_swapchain = false;
     }
 
     pub fn redraw(&mut self, resources: &Arc<Resources>, flight_id: Id<Flight>) {
         self.global_parameters.update();
 
-        self.rewrite_transforms = self.recreate_swapchain;
         self.recreate_swapchain(resources);
 
         let flight = resources.flight(flight_id);
         flight.wait(None).unwrap();
 
-        let resource_map = resource_map!(&self.task_graph,
-            self.virtual_swapchain_id => self.swapchain_id,
-        )
-        .unwrap();
+        let mut resource_map = ResourceMap::new(&self.task_graph).unwrap();
+        resource_map
+            .insert(self.virtual_swapchain_id, self.swapchain_id)
+            .unwrap();
+        for group in 1..self.resolved.groups.len() {
+            resource_map
+                .insert(
+                    self.virtual_target[group].unwrap(),
+                    self.target_physical[group].unwrap(),
+                )
+                .unwrap();
+        }
+
         match unsafe {
             self.task_graph
                 .execute(resource_map, self, || self.window.pre_present_notify())
@@ -500,4 +684,57 @@ impl RenderContext {
             }
         }
     }
+}
+
+fn create_target(resources: &Arc<Resources>, format: Format, size: Vec2) -> Id<Image> {
+    resources
+        .create_image(
+            &ImageCreateInfo {
+                image_type: ImageType::Dim2d,
+                format,
+                extent: [size.x.max(1.0) as u32, size.y.max(1.0) as u32, 1],
+                usage: ImageUsage::COLOR_ATTACHMENT | ImageUsage::SAMPLED,
+                ..Default::default()
+            },
+            &AllocationCreateInfo::default(),
+        )
+        .unwrap()
+}
+
+fn create_vertex_buffer(
+    resources: &Arc<Resources>,
+    queue: &Arc<Queue>,
+    flight_id: Id<Flight>,
+) -> Id<Buffer> {
+    let vertex_buffer_id = resources
+        .create_buffer(
+            &BufferCreateInfo {
+                usage: BufferUsage::VERTEX_BUFFER,
+                ..Default::default()
+            },
+            &AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                ..Default::default()
+            },
+            DeviceLayout::for_value(VERTICES.as_slice()).unwrap(),
+        )
+        .unwrap();
+    unsafe {
+        vulkano_taskgraph::execute(
+            queue,
+            resources,
+            flight_id,
+            |_cbf, tcx| {
+                tcx.try_write_buffer::<[MyVertex]>(vertex_buffer_id, ..)?
+                    .copy_from_slice(&VERTICES);
+                Ok(())
+            },
+            [(vertex_buffer_id, HostAccessType::Write)],
+            [],
+            [],
+        )
+    }
+    .unwrap();
+    vertex_buffer_id
 }

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{Context, Result, anyhow, bail};
-use glam::{Mat3, Vec2, Vec4};
+use glam::Vec4;
 use vulkano::{
     device::Device, pipeline::graphics::color_blend::AttachmentBlend, shader::EntryPoint,
 };
@@ -15,7 +15,7 @@ use crate::{
         },
         parameters::Parameters,
         shaders,
-        transform::{Transform, to_ndc, unit_to_local},
+        transform::Transform,
     },
 };
 
@@ -60,16 +60,6 @@ pub struct SceneData {
     pub background_color: Vec4,
     /// The root element (`panels`).
     pub root: Element,
-}
-
-/// A panel resolved against a concrete screen size: its matrix maps the unit quad to the screen's
-/// normalized device coordinates.
-pub struct ResolvedPanel {
-    pub transform: Mat3,
-    pub aspect_ratio: f32,
-    pub material: usize,
-    pub order: u32,
-    pub blend: AttachmentBlend,
 }
 
 impl SceneData {
@@ -130,21 +120,6 @@ impl SceneData {
             root,
         })
     }
-
-    /// Resolves the element tree against a concrete screen size into a flat, ordered list of
-    /// panels. (Group isolation is not implemented yet: groups only act as coordinate spaces and
-    /// ordering scopes, and every panel is drawn directly onto the screen.)
-    pub fn resolve(&self, screen_size: Vec2) -> Vec<ResolvedPanel> {
-        let mut panels = Vec::new();
-        resolve_element(
-            &self.root,
-            screen_size,
-            Mat3::IDENTITY,
-            screen_size,
-            &mut panels,
-        );
-        panels
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -198,7 +173,7 @@ fn build_element(
                 .collect::<Result<Vec<_>>>()?;
             Ok(Element::Group(Group {
                 transform: resolve_transform(&group.transform, transform_defs)?,
-                background: group.background,
+                background: group.background_color,
                 order: group.order,
                 blend: group.blend.to_blend()?,
                 children,
@@ -218,45 +193,6 @@ fn resolve_transform(
             .ok_or_else(|| anyhow!("references unknown transform '{name}'")),
         TransformRef::Inline(config) => config.to_transform(),
     }
-}
-
-fn resolve_element(
-    element: &Element,
-    parent_size: Vec2,
-    parent_local_to_abs: Mat3,
-    screen_size: Vec2,
-    panels: &mut Vec<ResolvedPanel>,
-) {
-    match element {
-        Element::Panel(panel) => {
-            let abs = parent_local_to_abs * panel.transform.matrix_px(parent_size);
-            panels.push(ResolvedPanel {
-                transform: to_ndc(Vec2::ZERO, screen_size) * abs,
-                aspect_ratio: panel.transform.aspect_ratio(parent_size),
-                material: panel.material,
-                order: panel.order,
-                blend: panel.blend.clone(),
-            });
-        }
-        Element::Group(group) => {
-            let abs = parent_local_to_abs * group.transform.matrix_px(parent_size);
-            let size = group.transform.size(parent_size);
-            let local_to_abs = abs * unit_to_local(size).inverse();
-            for child in sorted(&group.children) {
-                resolve_element(child, size, local_to_abs, screen_size, panels);
-            }
-        }
-    }
-}
-
-/// Children of a group in draw order: by `order`, ties broken by config order.
-fn sorted(children: &[Element]) -> Vec<&Element> {
-    let mut children = children.iter().collect::<Vec<_>>();
-    children.sort_by_key(|element| match element {
-        Element::Panel(panel) => panel.order,
-        Element::Group(group) => group.order,
-    });
-    children
 }
 
 fn create_material(

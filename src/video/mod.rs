@@ -1,5 +1,6 @@
 pub mod app;
 pub mod buffers;
+pub mod geometry;
 pub mod global_parameters;
 pub mod material_parameters;
 pub mod model;

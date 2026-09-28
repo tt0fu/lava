@@ -1,112 +1,103 @@
 use crate::video::{
     buffers::StorageBuffers,
+    geometry::{ResolvedChild, ResolvedScene},
     model::{MyVertex, VERTICES},
     render_context::RenderContext,
-    scene_data::{ResolvedPanel, SceneData},
+    scene_data::SceneData,
     shaders,
     tasks::create_pipeline::create_graphics_pipeline,
     transform::transform_buffer,
 };
 use std::{slice, sync::Arc};
 use vulkano::{
-    buffer::{Buffer, BufferCreateInfo, BufferUsage},
-    device::{Device, Queue},
-    memory::allocator::{AllocationCreateInfo, DeviceLayout, MemoryTypeFilter},
+    buffer::Buffer,
+    device::Device,
+    image::Image,
     pipeline::{
         GraphicsPipeline, PipelineLayout, PipelineShaderStageCreateInfo,
         graphics::{
             color_blend::AttachmentBlend,
             vertex_input::{Vertex, VertexDefinition},
+            viewport::Viewport,
         },
     },
     render_pass::Subpass,
     swapchain::Swapchain,
 };
 use vulkano_taskgraph::{
-    ClearValues, Id, Task, TaskContext,
-    command_buffer::RecordingCommandBuffer,
-    descriptor_set::{BindlessContext, SamplerId},
-    resource::{Flight, HostAccessType, Resources},
+    ClearValues, Id, Task, TaskContext, command_buffer::RecordingCommandBuffer,
+    descriptor_set::SamplerId,
 };
 
-// Everything needed to draw a single panel
+/// The image a group renders into.
+pub enum Target {
+    Swapchain(Id<Swapchain>),
+    Image(Id<Image>),
+}
+
+impl Target {
+    fn image_id(&self) -> Id<Image> {
+        match self {
+            Target::Swapchain(id) => id.current_image_id(),
+            Target::Image(id) => *id,
+        }
+    }
+}
+
+/// What a draw reproduces, used to recompute its transform on resize.
+#[derive(Clone, Copy)]
+pub enum DrawSource {
+    Panel(usize),
+    Group(usize),
+}
+
+/// Everything needed to draw a single panel (real or synthetic).
 pub struct Draw {
     pub pipeline: Arc<GraphicsPipeline>,
     pub push_constants: shaders::PushConstants,
+    pub transform_index: usize,
+    pub source: DrawSource,
 }
 
-// Information needed to draw all panels
 pub struct RenderData {
     pub layout: Arc<PipelineLayout>,
-    /// Panels in draw order, back to front.
+    /// Draws in back-to-front order.
     pub draws: Vec<Draw>,
 }
 
 pub struct RenderTask {
     pub vertex_buffer_id: Id<Buffer>,
-    pub swapchain_id: Id<Swapchain>,
-    pub scene_data: Arc<SceneData>,
+    pub group: usize,
+    pub target: Target,
+    pub background: [f32; 4],
     pub render_data: Option<RenderData>,
 }
 
 impl RenderTask {
     pub fn new(
-        resources: &Arc<Resources>,
-        queue: &Arc<Queue>,
-        flight_id: Id<Flight>,
-        scene_data: &Arc<SceneData>,
-        swapchain_id: Id<Swapchain>,
+        vertex_buffer_id: Id<Buffer>,
+        group: usize,
+        target: Target,
+        background: [f32; 4],
     ) -> Self {
-        let vertex_buffer_id = resources
-            .create_buffer(
-                &BufferCreateInfo {
-                    usage: BufferUsage::VERTEX_BUFFER,
-                    ..Default::default()
-                },
-                &AllocationCreateInfo {
-                    memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
-                        | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
-                    ..Default::default()
-                },
-                DeviceLayout::for_value(VERTICES.as_slice()).unwrap(),
-            )
-            .unwrap();
-
-        unsafe {
-            vulkano_taskgraph::execute(
-                queue,
-                resources,
-                flight_id,
-                |_cbf, tcx| {
-                    tcx.try_write_buffer::<[MyVertex]>(vertex_buffer_id, ..)?
-                        .copy_from_slice(&VERTICES);
-
-                    Ok(())
-                },
-                [(vertex_buffer_id, HostAccessType::Write)],
-                [],
-                [],
-            )
-        }
-        .unwrap();
-
-        let render_data = None;
-
         Self {
             vertex_buffer_id,
-            swapchain_id,
-            scene_data: scene_data.clone(),
-            render_data,
+            group,
+            target,
+            background,
+            render_data: None,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn create_render_data(
         &mut self,
         device: &Arc<Device>,
-        bcx: &BindlessContext,
+        layout: &Arc<PipelineLayout>,
         storage_buffers: &StorageBuffers,
         scene_data: &Arc<SceneData>,
-        resolved: &[ResolvedPanel],
+        resolved: &ResolvedScene,
+        group_shader: &vulkano::shader::EntryPoint,
         subpass: &Subpass,
         sampler_id: SamplerId,
     ) {
@@ -114,65 +105,78 @@ impl RenderTask {
             .unwrap()
             .entry_point("main")
             .unwrap();
-
         let vertex_input_state = [MyVertex::per_vertex()].definition(&vertex_shader).unwrap();
 
-        let all_stages = std::iter::once(PipelineShaderStageCreateInfo::new(&vertex_shader))
-            .chain(
-                scene_data
-                    .shaders
-                    .iter()
-                    .map(|e| PipelineShaderStageCreateInfo::new(&e)),
-            )
-            .collect::<Vec<PipelineShaderStageCreateInfo>>();
+        let panel_count = resolved.panels.len();
+        let material_count = scene_data.materials.len();
+        let group_shader_id = scene_data.shaders.len();
 
-        let layout = bcx
-            .pipeline_layout_from_stages(all_stages.as_slice())
-            .unwrap();
+        let mut cache: Vec<(usize, AttachmentBlend, Arc<GraphicsPipeline>)> = Vec::new();
+        let mut draws = Vec::new();
+        for child in &resolved.groups[self.group].children {
+            let (shader_id, blend, material, transform_index, source) = match child {
+                ResolvedChild::Panel(i) => {
+                    let panel = &resolved.panels[*i];
+                    (
+                        scene_data.materials[panel.material].shader_id,
+                        panel.blend.clone(),
+                        panel.material,
+                        *i,
+                        DrawSource::Panel(*i),
+                    )
+                }
+                ResolvedChild::Group(g) => (
+                    group_shader_id,
+                    resolved.groups[*g].blend.clone(),
+                    material_count + (g - 1),
+                    panel_count + (g - 1),
+                    DrawSource::Group(*g),
+                ),
+            };
 
-        let pushes = resolved
-            .iter()
-            .enumerate()
-            .map(|(i, p)| storage_buffers.push_constants(p, i, sampler_id))
-            .collect::<Vec<shaders::PushConstants>>();
-
-        let mut pipeline_cache: Vec<(usize, AttachmentBlend, Arc<GraphicsPipeline>)> = Vec::new();
-        let mut panel_pipelines = Vec::with_capacity(resolved.len());
-        for panel in resolved {
-            let shader_id = scene_data.materials[panel.material].shader_id;
-            let pipeline = match pipeline_cache
+            let pipeline = match cache
                 .iter()
-                .find(|(cached_shader, cached_blend, _)| {
-                    *cached_shader == shader_id && cached_blend == &panel.blend
-                }) {
+                .find(|(shader, cached_blend, _)| *shader == shader_id && cached_blend == &blend)
+            {
                 Some((_, _, pipeline)) => pipeline.clone(),
                 None => {
+                    let fragment = if shader_id == group_shader_id {
+                        group_shader
+                    } else {
+                        &scene_data.shaders[shader_id]
+                    };
                     let pipeline = create_graphics_pipeline(
                         device,
-                        &subpass,
+                        subpass,
                         &vertex_input_state,
-                        &layout,
+                        layout,
                         &[
                             PipelineShaderStageCreateInfo::new(&vertex_shader),
-                            PipelineShaderStageCreateInfo::new(&scene_data.shaders[shader_id]),
+                            PipelineShaderStageCreateInfo::new(fragment),
                         ],
-                        &panel.blend,
+                        &blend,
                     );
-                    pipeline_cache.push((shader_id, panel.blend.clone(), pipeline.clone()));
+                    cache.push((shader_id, blend, pipeline.clone()));
                     pipeline
                 }
             };
-            panel_pipelines.push(pipeline);
+
+            draws.push(Draw {
+                pipeline,
+                push_constants: storage_buffers.push_constants(
+                    material,
+                    transform_index,
+                    sampler_id,
+                ),
+                transform_index,
+                source,
+            });
         }
 
-        let draws = (0..resolved.len())
-            .map(|i| Draw {
-                pipeline: panel_pipelines[i].clone(),
-                push_constants: pushes[i],
-            })
-            .collect();
-
-        self.render_data = Some(RenderData { layout, draws });
+        self.render_data = Some(RenderData {
+            layout: layout.clone(),
+            draws,
+        });
     }
 }
 
@@ -180,8 +184,7 @@ impl Task for RenderTask {
     type World = RenderContext;
 
     fn clear_values(&self, clear_values: &mut ClearValues<'_>, _world: &Self::World) {
-        let bg: [f32; 4] = self.scene_data.background_color.into();
-        clear_values.set(self.swapchain_id.current_image_id(), bg);
+        clear_values.set(self.target.image_id(), self.background);
     }
 
     unsafe fn execute(
@@ -194,12 +197,35 @@ impl Task for RenderTask {
             let pass_data = self.render_data.as_ref().unwrap();
 
             if rcx.rewrite_transforms {
-                for (i, panel) in rcx.resolved.iter().enumerate() {
-                    *tcx.write_buffer(rcx.buffers.transforms[i], ..) =
-                        transform_buffer(panel.transform, panel.aspect_ratio);
+                for draw in &pass_data.draws {
+                    match draw.source {
+                        DrawSource::Panel(i) => {
+                            let panel = &rcx.resolved.panels[i];
+                            *tcx.write_buffer(rcx.buffers.transforms[draw.transform_index], ..) =
+                                transform_buffer(panel.ndc, panel.aspect_ratio);
+                        }
+                        DrawSource::Group(g) => {
+                            let group = &rcx.resolved.groups[g];
+                            *tcx.write_buffer(rcx.buffers.transforms[draw.transform_index], ..) =
+                                transform_buffer(group.composite_ndc, 1.0);
+                            let material = rcx.group_material[g].unwrap();
+                            *tcx.write_buffer::<shaders::GroupParams>(
+                                rcx.buffers.materials[material],
+                                ..,
+                            ) = group.params(rcx.target_sampled[g].unwrap());
+                        }
+                    }
                 }
             }
-            cbf.set_viewport(0, slice::from_ref(&rcx.viewport));
+
+            let size = rcx.resolved.groups[self.group].aabb_size;
+            let viewport = Viewport {
+                offset: [0.0, 0.0],
+                extent: size.to_array().into(),
+                min_depth: 0.0,
+                max_depth: 1.0,
+            };
+            cbf.set_viewport(0, slice::from_ref(&viewport));
             cbf.bind_vertex_buffers(0, &[self.vertex_buffer_id], &[0], &[], &[]);
 
             let mut bound_pipeline: Option<&Arc<GraphicsPipeline>> = None;
