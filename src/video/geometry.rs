@@ -28,10 +28,11 @@ pub struct ResolvedGroup {
     pub size: Vec2,
     pub aabb_origin: Vec2,
     pub aabb_size: Vec2,
-    /// Placement of this group's AABB quad in the parent target's NDC (unit quad -> NDC).
+    /// Placement of this group's rectangle in the parent target's NDC (unit quad -> NDC).
     pub composite_ndc: Mat3,
-    /// Maps the composite quad's UV `[0, 1]²` to this group's local pixel coordinates.
-    pub uv_to_local: Mat3,
+    /// Maps the synthetic panel's UV `[0, 1]²` (over the group's rectangle) to the group target's
+    /// AABB UV `[0, 1]²`.
+    pub uv_to_aabb: Mat3,
 }
 
 pub enum ResolvedChild {
@@ -44,12 +45,11 @@ impl ResolvedGroup {
     pub fn params(&self, image: SampledImageId) -> shaders::GroupParams {
         shaders::GroupParams {
             image: image.into(),
-            uv_to_local: [
-                self.uv_to_local.x_axis.to_array().into(),
-                self.uv_to_local.y_axis.to_array().into(),
-                self.uv_to_local.z_axis.to_array().into(),
+            uv_to_aabb: [
+                self.uv_to_aabb.x_axis.to_array().into(),
+                self.uv_to_aabb.y_axis.to_array().into(),
+                self.uv_to_aabb.z_axis.to_array().into(),
             ],
-            size: self.size.to_array().into(),
         }
     }
 }
@@ -99,16 +99,19 @@ impl ResolvedScene {
         ];
         let (aabb_origin, aabb_size) = aabb(&corners);
 
-        // `abs_from_uv` maps the composite quad's UV [0, 1]² to absolute screen pixels.
-        let abs_from_uv = Mat3::from_translation(aabb_origin) * Mat3::from_scale(aabb_size);
-        let (composite_ndc, uv_to_local) = match parent {
+        // The synthetic panel is the group's rectangle itself, not its AABB, so no fragment needs
+        // to be clipped: the group target is sampled through an affine map from the rectangle's UV
+        // to the AABB's UV.
+        let (composite_ndc, uv_to_aabb) = match parent {
             Some(parent) => {
                 let parent = &self.groups[parent];
+                let to_aabb_uv =
+                    Mat3::from_scale(1.0 / aabb_size) * Mat3::from_translation(-aabb_origin);
                 (
                     to_ndc(parent.aabb_origin, parent.aabb_size)
-                        * abs_from_uv
-                        * unit_to_local(Vec2::ONE),
-                    local_to_abs.inverse() * abs_from_uv,
+                        * local_to_abs
+                        * unit_to_local(size),
+                    to_aabb_uv * local_to_abs * Mat3::from_scale(size),
                 )
             }
             None => (Mat3::IDENTITY, Mat3::IDENTITY),
@@ -126,7 +129,7 @@ impl ResolvedScene {
             aabb_origin,
             aabb_size,
             composite_ndc,
-            uv_to_local,
+            uv_to_aabb,
         });
         index
     }
