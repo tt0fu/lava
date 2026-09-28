@@ -15,7 +15,7 @@ VKO_DECLARE_STORAGE_BUFFER(dft_buffer, Dft {
 #define DFT vko_buffer(dft_buffer, dft_buffer_id)
 
 float dft_get_bin(float frequency) {
-    return DFT.exp_bins * log2(frequency / DFT.lowest_frequency);
+    return clamp(DFT.exp_bins * log2(frequency / DFT.lowest_frequency), 0.0, float(DFT.bin_count - 1));
 }
 
 float dft_get_frequency(float bin) {

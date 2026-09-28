@@ -92,7 +92,11 @@ impl TypedParameters for WaveformParameters {
 pub struct SpectrogramParameters {
     pub background: Vec4,
     pub foreground: Vec4,
+    pub min_frequency: f32,
+    pub max_frequency: f32,
     pub gain: f32,
+    pub add: f32,
+    pub circular: bool,
     pub debug: bool,
 }
 
@@ -103,7 +107,11 @@ impl TypedParameters for SpectrogramParameters {
         Self::Content {
             background: self.background.into(),
             foreground: self.foreground.into(),
+            min_frequency: self.min_frequency,
+            max_frequency: self.max_frequency,
             gain: self.gain,
+            add: self.add,
+            circular: self.circular as u32,
             debug: self.debug as u32,
         }
     }

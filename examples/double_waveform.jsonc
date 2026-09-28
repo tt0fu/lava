@@ -116,7 +116,7 @@
         "background": [0.0, 0.0, 0.0, 0.0],
         "foreground": [1.0, 1.0, 1.0, 1.0],
         "line_width": 50.0,
-        "gain": 1.0,
+        "gain": 0.95,
       },
     },
     "spectrogram": {
@@ -124,10 +124,27 @@
       "parameters": {
         "background": [0.0, 0.0, 0.0, 0.0],
         "foreground": [1.0, 1.0, 1.0, 1.0],
+        "min_frequency": 1,
+        "max_frequency": 20000,
         "gain": 1.65,
+        "add": 0.0,
+        "circular": false,
         "debug": false,
       },
     },
+    // "circular spectrogram": {
+    //   "shader": "spectrogram",
+    //   "parameters": {
+    //     "background": [0.0, 0.0, 0.0, 0.0],
+    //     "foreground": [1.0, 1.0, 1.0, 1.0],
+    //     "min_frequency": 15,
+    //     "max_frequency": 200,
+    //     "gain": 0.7,
+    //     "add": 0.1,
+    //     "circular": true,
+    //     "debug": false,
+    //   },
+    // },
     "pattern": {
       "shader": "pattern",
       "parameters": {
