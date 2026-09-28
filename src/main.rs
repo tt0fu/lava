@@ -3,7 +3,7 @@ use lava::{config::Config, video::app::App};
 use winit::event_loop::EventLoop;
 
 fn main() -> Result<()> {
-    let path = std::env::args().nth(1).expect("usage: lava <config.jsonc>");
+    let path = std::env::args().nth(1).expect("usage: lava <path/to/config.jsonc>");
     let config = Config::load(path)?;
 
     let debug = cfg!(debug_assertions) || cfg!(feature = "debug");

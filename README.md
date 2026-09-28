@@ -7,12 +7,8 @@
 ## Usage
 
 ```
-lava [<path/to/config.jsonc>] [--print-config | -p] [--help | -h]
+lava <path/to/config.jsonc>
 ```
-
-If no path is provided, the default config is loaded.
-
-The [default config](./examples/waveform.jsonc) (which can be obtained with `lava -p`) contains the defaults for values not specified in the config file.
 
 You can find some example configs in the [examples](./examples) directory
 
