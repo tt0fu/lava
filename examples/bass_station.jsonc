@@ -1,74 +1,197 @@
 {
-  "window_size": { "width": 1920, "height": 1080 },
-  "panels": [
-    {
-      "material": {
-        "type": "waveform",
-        "parameters": {},
-      },
-      "transform": {
-        "scale": { "type": "pixels", "value": [1192.0, 671.0] },
-        "position": { "type": "pixels", "value": [596.0, 744.5] },
+  "audio": {
+    "sample_rate": 48000,
+    "channel_count": 1,
+    "stream_buffer_size": 256,
+    "sample_count": 8192,
+    "dft_bin_count": 2048,
+    "bands_history_length": 1024,
+    "bands_history_delta": 0.005,
+  },
+  "transforms": {
+    "fullscreen": {
+      "anchor": "top left",
+      "position": [
+        [0.0, "w"],
+        [0.0, "h"],
+      ],
+      "scale": [
+        [1.0, "w"],
+        [1.0, "h"],
+      ],
+      "rotation": 0.0,
+    },
+  },
+  "images": {
+    "logo": "./logo.png",
+  },
+  "materials": {
+    "pattern": {
+      "shader": "pattern",
+      "parameters": {
+        "lightness": 0.8,
+        "chroma": 0.1,
+        "scale": 1.0,
+        "repeats": 2.0,
+        "warp_speed": 1.0,
+        "scroll_speed": 2.0,
       },
     },
-    {
-      "material": {
-        "type": "simple_pattern",
-        "parameters": {
-          "pattern": {
-            "scale": 3.0,
+    "pattern_3": {
+      "shader": "pattern",
+      "parameters": {
+        "lightness": 0.8,
+        "chroma": 0.1,
+        "scale": 3.0,
+        "repeats": 2.0,
+        "warp_speed": 1.0,
+        "scroll_speed": 2.0,
+      },
+    },
+    "waveform": {
+      "shader": "waveform",
+      "parameters": {
+        "background": [0.0, 0.0, 0.0, 0.0],
+        "foreground": [1.0, 1.0, 1.0, 1.0],
+        "line_width": 50.0,
+        "gain": 0.9,
+      },
+    },
+    "spectrogram": {
+      "shader": "spectrogram",
+      "parameters": {
+        "background": [0.0, 0.0, 0.0, 0.0],
+        "foreground": [1.0, 1.0, 1.0, 1.0],
+        "min_frequency": 20.0,
+        "max_frequency": 20000.0,
+        "gain": 1.5,
+        "add": 0.0,
+        "circular": false,
+        "debug": false,
+      },
+    },
+    "logo_07": {
+      "shader": "image",
+      "parameters": {
+        "image": "logo",
+        "multiply": [1.0, 1.0, 1.0, 1.0],
+        "add": [0.0, 0.0, 0.0, 0.0],
+        "band_weights": [1.0, 0.0, 0.0, 0.0],
+        "min_size": 0.7,
+      },
+    },
+  },
+  "panels": {
+    "transform": "fullscreen",
+    "order": 0,
+    "blend": "normal",
+    "background_color": [0.0, 0.0, 0.0, 1.0],
+    "children": [
+      {
+        // Waveform, masked by the rainbow pattern.
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [596.0, "px"],
+            [744.5, "px"],
+          ],
+          "scale": [
+            [1192.0, "px"],
+            [671.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
           },
-        },
-      },
-      "transform": {
-        "scale": { "type": "pixels", "value": [602.0, 1080.0] },
-        "position": { "type": "pixels", "value": [1619.0, 540.0] },
-      },
-    },
-    {
-      "material": {
-        "type": "spectrogram",
-        "parameters": {
-          "pattern": {
-            "use_rainbow": false,
+          {
+            "transform": "fullscreen",
+            "material": "waveform",
+            "order": 1,
+            "blend": "multiply",
           },
+        ],
+      },
+      {
+        // Right vertical pattern.
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [1619.0, "px"],
+            [540.0, "px"],
+          ],
+          "scale": [
+            [602.0, "px"],
+            [1080.0, "px"],
+          ],
+          "rotation": 0.0,
         },
+        "material": "pattern_3",
+        "order": 0,
+        "blend": "normal",
       },
-      "transform": {
-        "scale": { "type": "pixels", "value": [-215.0, 215.0] },
-        "position": { "type": "pixels", "value": [1738.0, 310.0] },
-        "angle": 45.0,
-      },
-    },
-    {
-      "material": {
-        "type": "spectrogram",
-        "parameters": {
-          "pattern": {
-            "use_rainbow": false,
-          },
+      {
+        // Top right spectrogram.
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [1738.0, "px"],
+            [310.0, "px"],
+          ],
+          "scale": [
+            [-215.0, "px"],
+            [215.0, "px"],
+          ],
+          "rotation": 45.0,
         },
+        "material": "spectrogram",
+        "order": 0,
+        "blend": "normal",
       },
-      "transform": {
-        "scale": { "type": "pixels", "value": [215.0, 215.0] },
-        "position": { "type": "pixels", "value": [1738.0, 780.0] },
-        "angle": 135.0,
-      },
-    },
-    {
-      "material": {
-        "type": "image",
-        "parameters": {
-          "scale_min": 0.7,
-          "scale_max": 1.0,
+      {
+        // Bottom right spectrogram.
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [1738.0, "px"],
+            [780.0, "px"],
+          ],
+          "scale": [
+            [215.0, "px"],
+            [215.0, "px"],
+          ],
+          "rotation": 135.0,
         },
+        "material": "spectrogram",
+        "order": 0,
+        "blend": "normal",
       },
-      "transform": {
-        "scale": { "type": "pixels", "value": [160.0, 160.0] },
-        "position": { "type": "pixels", "value": [1645.0, 545.0] },
-        "angle": -90.0,
+      {
+        // Logo.
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [1645.0, "px"],
+            [545.0, "px"],
+          ],
+          "scale": [
+            [160.0, "px"],
+            [160.0, "px"],
+          ],
+          "rotation": -90.0,
+        },
+        "material": "logo_07",
+        "order": 0,
+        "blend": "normal",
       },
-    },
-  ],
-  "image_path": "./logo.png",
+    ],
+  },
+  "background_color": [0.0, 0.0, 0.0, 1.0],
 }

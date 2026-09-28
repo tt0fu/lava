@@ -36,6 +36,40 @@ impl TypedParameters for PatternParameters {
 }
 
 #[derive(Deserialize)]
+pub struct GridnodeParameters {
+    pub lightness: f32,
+    pub chroma: f32,
+}
+
+impl TypedParameters for GridnodeParameters {
+    type Content = shaders::GridnodeParams;
+
+    fn get_content(&self) -> Self::Content {
+        Self::Content {
+            lightness: self.lightness.into(),
+            chroma: self.chroma.into(),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct HnodeParameters {
+    pub lightness: f32,
+    pub chroma: f32,
+}
+
+impl TypedParameters for HnodeParameters {
+    type Content = shaders::HnodeParams;
+
+    fn get_content(&self) -> Self::Content {
+        Self::Content {
+            lightness: self.lightness.into(),
+            chroma: self.chroma.into(),
+        }
+    }
+}
+
+#[derive(Deserialize)]
 pub struct ColorParameters {
     pub color: Vec4,
 }

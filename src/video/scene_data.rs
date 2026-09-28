@@ -10,8 +10,8 @@ use crate::{
     config::{Config, ElementConfig, MaterialConfig, MaterialRef, TransformRef},
     video::{
         material_parameters::{
-            BandsParameters, ClockParameters, ColorParameters, ImageParameters, PatternParameters,
-            SpectrogramParameters, WaveformParameters,
+            BandsParameters, ClockParameters, ColorParameters, GridnodeParameters, HnodeParameters,
+            ImageParameters, PatternParameters, SpectrogramParameters, WaveformParameters,
         },
         parameters::Parameters,
         shaders,
@@ -230,6 +230,8 @@ fn load_shader(device: &Arc<Device>, name: &str) -> Option<EntryPoint> {
             "bands" => shaders::load_bands(device),
             "image" => shaders::load_image(device),
             "pattern" => shaders::load_pattern(device),
+            "gridnode" => shaders::load_gridnode(device),
+            "hnode" => shaders::load_hnode(device),
             _ => return None,
         }
     }
@@ -259,6 +261,8 @@ fn material_parameters(
             Box::new(image_parameters)
         }
         "pattern" => Box::new(serde_json::from_value::<PatternParameters>(parameters)?),
+        "gridnode" => Box::new(serde_json::from_value::<GridnodeParameters>(parameters)?),
+        "hnode" => Box::new(serde_json::from_value::<HnodeParameters>(parameters)?),
         _ => bail!("unknown shader '{shader}'"),
     };
     Ok(parameters)

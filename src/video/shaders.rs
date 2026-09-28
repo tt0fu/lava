@@ -46,5 +46,13 @@ vulkano_shaders::shader! {
             ty: "fragment",
             path: "src/video/shaders/group.glsl",
         },
+        gridnode: {
+            ty: "fragment",
+            path: "src/video/shaders/gridnode.glsl",
+        },
+        hnode: {
+            ty: "fragment",
+            path: "src/video/shaders/hnode.glsl",
+        },
     },
 }

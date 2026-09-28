@@ -1,0 +1,775 @@
+{
+  "audio": {
+    "sample_rate": 48000,
+    "channel_count": 1,
+    "stream_buffer_size": 256,
+    "sample_count": 8192,
+    "dft_bin_count": 2048,
+    "bands_history_length": 1024,
+    "bands_history_delta": 0.005,
+  },
+  "transforms": {
+    "fullscreen": {
+      "anchor": "top left",
+      "position": [
+        [0.0, "w"],
+        [0.0, "h"],
+      ],
+      "scale": [
+        [1.0, "w"],
+        [1.0, "h"],
+      ],
+      "rotation": 0.0,
+    },
+  },
+  "images": {
+    "logo": "./logo.png",
+  },
+  "materials": {
+    "pattern": {
+      "shader": "pattern",
+      "parameters": {
+        "lightness": 0.8,
+        "chroma": 0.1,
+        "scale": 1.0,
+        "repeats": 2.0,
+        "warp_speed": 1.0,
+        "scroll_speed": 2.0,
+      },
+    },
+    "pattern_5": {
+      "shader": "pattern",
+      "parameters": {
+        "lightness": 0.8,
+        "chroma": 0.1,
+        "scale": 5.0,
+        "repeats": 2.0,
+        "warp_speed": 1.0,
+        "scroll_speed": 2.0,
+      },
+    },
+    "waveform": {
+      "shader": "waveform",
+      "parameters": {
+        "background": [0.0, 0.0, 0.0, 0.0],
+        "foreground": [1.0, 1.0, 1.0, 1.0],
+        "line_width": 50.0,
+        "gain": 0.9,
+      },
+    },
+    "spectrogram": {
+      "shader": "spectrogram",
+      "parameters": {
+        "background": [0.0, 0.0, 0.0, 0.0],
+        "foreground": [1.0, 1.0, 1.0, 1.0],
+        "min_frequency": 1.0,
+        "max_frequency": 20000.0,
+        "gain": 1.65,
+        "add": 0.0,
+        "circular": false,
+        "debug": false,
+      },
+    },
+    "logo": {
+      "shader": "image",
+      "parameters": {
+        "image": "logo",
+        "multiply": [1.0, 1.0, 1.0, 1.0],
+        "add": [0.0, 0.0, 0.0, 0.0],
+        "band_weights": [1.0, 0.0, 0.0, 0.0],
+        "min_size": 0.5,
+      },
+    },
+    "logo_1": {
+      "shader": "image",
+      "parameters": {
+        "image": "logo",
+        "multiply": [1.0, 1.0, 1.0, 1.0],
+        "add": [0.0, 0.0, 0.0, 0.0],
+        "band_weights": [0.0, 0.0, 0.0, 0.0],
+        "min_size": 1.0,
+      },
+    },
+    "mask": {
+      "shader": "image",
+      "parameters": {
+        "image": "logo",
+        "multiply": [0.0, 0.0, 0.0, 1.0],
+        "add": [1.0, 1.0, 1.0, 0.0],
+        "band_weights": [1.0, 0.0, 0.0, 0.0],
+        "min_size": 0.5,
+      },
+    },
+    "mask_1": {
+      "shader": "image",
+      "parameters": {
+        "image": "logo",
+        "multiply": [0.0, 0.0, 0.0, 1.0],
+        "add": [1.0, 1.0, 1.0, 0.0],
+        "band_weights": [0.0, 0.0, 0.0, 0.0],
+        "min_size": 1.0,
+      },
+    },
+    "hnode": {
+      "shader": "hnode",
+      "parameters": {
+        "lightness": 0.8,
+        "chroma": 0.1,
+      },
+    },
+  },
+  "panels": {
+    "transform": "fullscreen",
+    "order": 0,
+    "blend": "normal",
+    "background_color": [0.0, 0.0, 0.0, 1.0],
+    "children": [
+      {
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [960.0, "px"],
+            [104.0, "px"],
+          ],
+          "scale": [
+            [1920.0, "px"],
+            [208.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "material": "hnode",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        // Left
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [122.0, "px"],
+            [644.0, "px"],
+          ],
+          "scale": [
+            [-872.0, "px"],
+            [244.0, "px"],
+          ],
+          "rotation": 90.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "spectrogram",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Right
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [366.0, "px"],
+            [644.0, "px"],
+          ],
+          "scale": [
+            [-872.0, "px"],
+            [-244.0, "px"],
+          ],
+          "rotation": 90.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "spectrogram",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Bottom
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [924.0, "px"],
+            [404.0, "px"],
+          ],
+          "scale": [
+            [872.0, "px"],
+            [392.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "waveform",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Bottom Center bg
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [924.0, "px"],
+            [656.0, "px"],
+          ],
+          "scale": [
+            [872.0, "px"],
+            [112.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "material": "pattern",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        // Bottom Center left spectrogram
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [706.0, "px"],
+            [656.0, "px"],
+          ],
+          "scale": [
+            [436.0, "px"],
+            [112.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "material": "spectrogram",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        // Bottom Center right spectrogram
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [1142.0, "px"],
+            [656.0, "px"],
+          ],
+          "scale": [
+            [-436.0, "px"],
+            [112.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "material": "spectrogram",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        // Bottom Center Logo
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [924.0, "px"],
+            [656.0, "px"],
+          ],
+          "scale": [
+            [150.0, "px"],
+            [150.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "material": "logo",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        // Bottom Left
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [706.0, "px"],
+            [768.0, "px"],
+          ],
+          "scale": [
+            [436.0, "px"],
+            [112.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "material": "pattern",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        // Bottom Left spectrogram
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [706.0, "px"],
+            [768.0, "px"],
+          ],
+          "scale": [
+            [436.0, "px"],
+            [112.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "material": "spectrogram",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        // Bottom Right
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [1142.0, "px"],
+            [768.0, "px"],
+          ],
+          "scale": [
+            [436.0, "px"],
+            [112.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "material": "pattern",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        // Bottom Right spectrogram
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [1142.0, "px"],
+            [768.0, "px"],
+          ],
+          "scale": [
+            [-436.0, "px"],
+            [112.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "material": "spectrogram",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        // Shape 1 Right
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [552.0, "px"],
+            [888.0, "px"],
+          ],
+          "scale": [
+            [128.0, "px"],
+            [128.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "mask",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Shape 2 Right
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [680.0, "px"],
+            [888.0, "px"],
+          ],
+          "scale": [
+            [128.0, "px"],
+            [128.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "mask",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Shape 3 Right
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [808.0, "px"],
+            [888.0, "px"],
+          ],
+          "scale": [
+            [128.0, "px"],
+            [128.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "mask",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Shape 4 Right
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [936.0, "px"],
+            [888.0, "px"],
+          ],
+          "scale": [
+            [128.0, "px"],
+            [128.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "mask",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Shape 1 Left
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [552.0, "px"],
+            [1016.0, "px"],
+          ],
+          "scale": [
+            [128.0, "px"],
+            [128.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "mask",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Shape 2 Left
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [680.0, "px"],
+            [1016.0, "px"],
+          ],
+          "scale": [
+            [128.0, "px"],
+            [128.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "mask",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Shape 3 Left
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [808.0, "px"],
+            [1016.0, "px"],
+          ],
+          "scale": [
+            [128.0, "px"],
+            [128.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "mask",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Shape 4 Left
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [936.0, "px"],
+            [1016.0, "px"],
+          ],
+          "scale": [
+            [128.0, "px"],
+            [128.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "mask",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Gobo 2
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [1038.0, "px"],
+            [1042.0, "px"],
+          ],
+          "scale": [
+            [76.0, "px"],
+            [76.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "mask_1",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Gobo 1
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [1114.0, "px"],
+            [1042.0, "px"],
+          ],
+          "scale": [
+            [76.0, "px"],
+            [76.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "material": "logo_1",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        // Roof Full
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [1640.0, "px"],
+            [546.0, "px"],
+          ],
+          "scale": [
+            [560.0, "px"],
+            [676.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "material": "pattern_5",
+        "order": 0,
+        "blend": "normal",
+      },
+      {
+        // Top left spectrogram
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [1500.0, "px"],
+            [959.0, "px"],
+          ],
+          "scale": [
+            [280.0, "px"],
+            [-150.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "spectrogram",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+      {
+        // Top right spectrogram
+        "transform": {
+          "anchor": "center",
+          "position": [
+            [1780.0, "px"],
+            [959.0, "px"],
+          ],
+          "scale": [
+            [-280.0, "px"],
+            [-150.0, "px"],
+          ],
+          "rotation": 0.0,
+        },
+        "order": 0,
+        "blend": "normal",
+        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "children": [
+          {
+            "transform": "fullscreen",
+            "material": "pattern",
+            "order": 0,
+            "blend": "normal",
+          },
+          {
+            "transform": "fullscreen",
+            "material": "spectrogram",
+            "order": 1,
+            "blend": "multiply",
+          },
+        ],
+      },
+    ],
+  },
+  "background_color": [0.0, 0.0, 0.0, 1.0],
+}
