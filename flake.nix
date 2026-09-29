@@ -65,7 +65,6 @@
 
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath packages;
             PKG_CONFIG_PATH = "${pkgs.alsa-lib.dev}/lib/pkgconfig:${pkgs.jack2.dev}/lib/pkgconfig";
-            SHADERC_LIB_DIR = pkgs.lib.makeLibraryPath [ pkgs.shaderc ];
             VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
 
             shellHook = ''

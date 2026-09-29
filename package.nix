@@ -19,7 +19,7 @@ rustPlatform.buildRustPackage rec {
   cargoLock = {
     lockFile = ./Cargo.lock;
     outputHashes = {
-      "vulkano-0.35.0" = "sha256-UMfCh67b/Yb4w7EcN+G2z+BCkOR4ecuElgllBdN4nxY=";
+      "vulkano-0.35.0" = "sha256-K+L3Q+XDQnGqH/FCJF0EWIZZ713ziHsbB0KtkRELUIc=";
       "concurrent-slotmap-0.1.0-alpha.2" = "sha256-Sle4tcFvWLLKmghpzG6Ds/yU57VrNddzDIerVJ8eHd0=";
     };
   };
@@ -27,6 +27,7 @@ rustPlatform.buildRustPackage rec {
 
   nativeBuildInputs = [
     pkg-config
+    shaderc
   ];
 
   buildInputs = [
@@ -37,10 +38,7 @@ rustPlatform.buildRustPackage rec {
     jack2
   ];
 
-  env = {
-    PKG_CONFIG_PATH = "${alsa-lib.dev}/lib/pkgconfig:${jack2.dev}/lib/pkgconfig";
-    SHADERC_LIB_DIR = lib.makeLibraryPath [ shaderc ];
-  };
+  env.PKG_CONFIG_PATH = "${alsa-lib.dev}/lib/pkgconfig:${jack2.dev}/lib/pkgconfig";
 
   postFixup =
     if portable then
