@@ -40,11 +40,27 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Install ALSA and Jack development libraries
+      - name: Install Linux build dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
-          sudo apt update
-          sudo apt install -y libasound2-dev libjack-jackd2-dev
+          sudo apt-get update
+          sudo apt-get install -y glslc libasound2-dev libjack-jackd2-dev
+
+      - name: Install Vulkan SDK
+        id: vulkan
+        if: matrix.os == 'windows-latest'
+        uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          install_runtime: false
+          cache: true
+
+      - name: Add glslc to PATH
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: echo "${{ steps.vulkan.outputs.VULKAN_SDK }}\Bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify glslc is available
+        run: glslc --version
 
       - name: Cache cargo registry
         uses: actions/cache@v5
