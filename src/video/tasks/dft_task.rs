@@ -1,9 +1,9 @@
 use crate::{
     audio::audio_settings::AudioSettings,
     video::{
+        pipeline::create_compute_pipeline,
         render_context::RenderContext,
         shaders::{self, ComputePushConstants},
-        tasks::create_pipeline::create_compute_pipeline,
     },
 };
 use std::sync::Arc;

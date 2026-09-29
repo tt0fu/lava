@@ -3,9 +3,10 @@ use vulkano::pipeline::graphics::color_blend::AttachmentBlend;
 use vulkano_taskgraph::descriptor_set::SampledImageId;
 
 use crate::video::{
-    scene_data::{Element, SceneData},
+    math::{aabb, to_ndc, unit_to_local},
+    scene_data::SceneData,
+    scene_element::Element,
     shaders,
-    transform::{aabb, to_ndc, unit_to_local},
 };
 
 /// The element tree resolved against a concrete screen size.
@@ -17,21 +18,16 @@ pub struct ResolvedScene {
 }
 
 pub struct ResolvedGroup {
-    pub parent: Option<usize>,
     /// Direct children, in draw order (back to front).
     pub children: Vec<ResolvedChild>,
     pub background: Vec4,
     pub blend: AttachmentBlend,
-    pub order: u32,
-    /// Maps group-local pixel coordinates `[0, size]` to absolute screen pixels.
-    pub local_to_abs: Mat3,
-    pub size: Vec2,
     pub aabb_origin: Vec2,
     pub aabb_size: Vec2,
     /// Placement of this group's rectangle in the parent target's NDC (unit quad -> NDC).
     pub composite_ndc: Mat3,
-    /// Maps the synthetic panel's UV `[0, 1]²` (over the group's rectangle) to the group target's
-    /// AABB UV `[0, 1]²`.
+    /// Maps the synthetic panel's UV `[0, 1]^2` (over the group's rectangle) to the group target's
+    /// AABB UV `[0, 1]^2`.
     pub uv_to_aabb: Mat3,
 }
 
@@ -74,9 +70,8 @@ impl ResolvedScene {
             None,
             screen_size,
             Mat3::IDENTITY,
-            scene.background_color,
+            scene.background,
             AttachmentBlend::alpha(),
-            0,
         );
         resolved.add_element(root, &scene.root, screen_size, Mat3::IDENTITY);
         resolved
@@ -89,7 +84,6 @@ impl ResolvedScene {
         local_to_abs: Mat3,
         background: Vec4,
         blend: AttachmentBlend,
-        order: u32,
     ) -> usize {
         let corners = [
             local_to_abs.transform_point2(Vec2::ZERO),
@@ -119,13 +113,9 @@ impl ResolvedScene {
 
         let index = self.groups.len();
         self.groups.push(ResolvedGroup {
-            parent,
             children: Vec::new(),
             background,
             blend,
-            order,
-            local_to_abs,
-            size,
             aabb_origin,
             aabb_size,
             composite_ndc,
@@ -166,17 +156,13 @@ impl ResolvedScene {
                     local_to_abs,
                     group.background,
                     group.blend.clone(),
-                    group.order,
                 );
                 self.groups[parent]
                     .children
                     .push(ResolvedChild::Group(index));
 
                 let mut children = group.children.iter().collect::<Vec<_>>();
-                children.sort_by_key(|element| match element {
-                    Element::Panel(panel) => panel.order,
-                    Element::Group(group) => group.order,
-                });
+                children.sort_by_key(|element| element.order());
                 for child in children {
                     self.add_element(index, child, size, local_to_abs);
                 }

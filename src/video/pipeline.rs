@@ -20,6 +20,42 @@ use vulkano::{
 };
 use vulkano_taskgraph::descriptor_set::BindlessContext;
 
+use crate::video::{scene_data::SceneData, shaders};
+
+pub fn load_vertex_shader(device: &Arc<Device>) -> EntryPoint {
+    unsafe { shaders::load_vertex(device) }
+        .unwrap()
+        .entry_point("main")
+        .unwrap()
+}
+
+pub fn load_group_shader(device: &Arc<Device>) -> EntryPoint {
+    unsafe { shaders::load_group(device) }
+        .unwrap()
+        .entry_point("main")
+        .unwrap()
+}
+
+pub fn create_shared_pipeline_layout(
+    bcx: &BindlessContext,
+    scene_data: &SceneData,
+    vertex_shader: &EntryPoint,
+    group_shader: &EntryPoint,
+) -> Arc<PipelineLayout> {
+    let stages = std::iter::once(PipelineShaderStageCreateInfo::new(vertex_shader))
+        .chain(
+            scene_data
+                .shaders
+                .iter()
+                .map(PipelineShaderStageCreateInfo::new),
+        )
+        .chain(std::iter::once(PipelineShaderStageCreateInfo::new(
+            group_shader,
+        )))
+        .collect::<Vec<_>>();
+    bcx.pipeline_layout_from_stages(&stages).unwrap()
+}
+
 pub fn create_compute_pipeline(
     device: &Arc<Device>,
     bcx: &BindlessContext,

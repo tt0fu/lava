@@ -2,23 +2,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use vulkano::{
-    VulkanLibrary,
-    device::{
-        Device, DeviceCreateInfo, DeviceExtensions, DeviceFeatures, Queue, QueueCreateInfo,
-        QueueFlags, physical::PhysicalDeviceType,
-    },
-    instance::{
-        Instance, InstanceCreateFlags, InstanceCreateInfo, InstanceExtensions,
-        debug::{
-            DebugUtilsMessageSeverity, DebugUtilsMessageType, DebugUtilsMessenger,
-            DebugUtilsMessengerCallback, DebugUtilsMessengerCreateInfo,
-        },
-    },
-    swapchain::Surface,
+    device::{Device, Queue},
+    instance::{Instance, debug::DebugUtilsMessenger},
 };
 use vulkano_taskgraph::{
     Id,
-    descriptor_set::BindlessContext,
     resource::{Flight, Resources, ResourcesCreateInfo},
 };
 use winit::{
@@ -32,11 +20,11 @@ use crate::{
     audio::{audio_settings::AudioSettings, stream::Stream},
     config::Config,
     stats::frame_timer::FrameTimer,
-    video::{render_context::RenderContext, scene_data::SceneData},
+    video::{
+        MAX_FRAMES_IN_FLIGHT, debug::create_debug_messenger, device::create_device,
+        instance::create_instance, render_context::RenderContext, scene_data::SceneData,
+    },
 };
-
-pub const MAX_FRAMES_IN_FLIGHT: u32 = 2;
-pub const MIN_SWAPCHAIN_IMAGES: u32 = MAX_FRAMES_IN_FLIGHT + 1;
 
 pub struct App {
     pub instance: Arc<Instance>,
@@ -49,151 +37,25 @@ pub struct App {
     pub audio_settings: Arc<AudioSettings>,
 
     pub render_context: Option<RenderContext>,
-
     pub stream: Arc<Stream>,
-
     pub frame_timer: FrameTimer,
+
+    /// Kept alive for as long as the app runs so validation messages keep being reported.
+    _debug_messenger: Option<DebugUtilsMessenger>,
 }
 
 impl App {
     pub fn new(event_loop: &EventLoop<()>, config: Config, debug: bool) -> Result<Self> {
-        let extensions = InstanceExtensions {
-            ext_debug_utils: debug,
-            ..InstanceExtensions::empty()
+        let instance = create_instance(event_loop, debug);
+        let debug_messenger = if debug {
+            create_debug_messenger(&instance)
+        } else {
+            None
         };
-        let library = unsafe { VulkanLibrary::new() }.unwrap();
-
-        let required_extensions = Surface::required_extensions(event_loop);
-        let instance = Instance::new(
-            &library,
-            &InstanceCreateInfo {
-                flags: InstanceCreateFlags::ENUMERATE_PORTABILITY,
-                enabled_layers: if debug {
-                    &["VK_LAYER_KHRONOS_validation"]
-                } else {
-                    &[]
-                },
-                enabled_extensions: &required_extensions.union(&extensions),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
-        if debug {
-            let _debug_callback = unsafe {
-                DebugUtilsMessenger::new(
-                    &instance,
-                    &DebugUtilsMessengerCreateInfo {
-                        message_severity: DebugUtilsMessageSeverity::ERROR
-                            | DebugUtilsMessageSeverity::WARNING
-                            | DebugUtilsMessageSeverity::INFO
-                            | DebugUtilsMessageSeverity::VERBOSE,
-                        message_type: DebugUtilsMessageType::GENERAL
-                            | DebugUtilsMessageType::VALIDATION
-                            | DebugUtilsMessageType::PERFORMANCE,
-                        ..DebugUtilsMessengerCreateInfo::new(&DebugUtilsMessengerCallback::new(
-                            |message_severity, message_type, callback_data| {
-                                let severity = if message_severity
-                                    .intersects(DebugUtilsMessageSeverity::ERROR)
-                                {
-                                    "error"
-                                } else if message_severity
-                                    .intersects(DebugUtilsMessageSeverity::WARNING)
-                                {
-                                    "warning"
-                                } else if message_severity
-                                    .intersects(DebugUtilsMessageSeverity::INFO)
-                                {
-                                    "information"
-                                } else if message_severity
-                                    .intersects(DebugUtilsMessageSeverity::VERBOSE)
-                                {
-                                    "verbose"
-                                } else {
-                                    panic!("no-impl");
-                                };
-
-                                let ty = if message_type.intersects(DebugUtilsMessageType::GENERAL)
-                                {
-                                    "general"
-                                } else if message_type.intersects(DebugUtilsMessageType::VALIDATION)
-                                {
-                                    "validation"
-                                } else if message_type
-                                    .intersects(DebugUtilsMessageType::PERFORMANCE)
-                                {
-                                    "performance"
-                                } else {
-                                    panic!("no-impl");
-                                };
-
-                                println!(
-                                    "{} {} {}: {}",
-                                    callback_data.message_id_name.unwrap_or("unknown"),
-                                    ty,
-                                    severity,
-                                    callback_data.message
-                                );
-                            },
-                        ))
-                    },
-                )
-            }
-            .ok();
-        }
-
-        let device_extensions = DeviceExtensions {
-            khr_swapchain: true,
-            ..DeviceExtensions::empty()
-        };
-        let (physical_device, queue_family_index) = instance
-            .enumerate_physical_devices()
-            .unwrap()
-            .into_iter()
-            .filter(|p| p.supported_extensions().contains(&device_extensions))
-            .filter_map(|p| {
-                p.queue_family_properties()
-                    .iter()
-                    .enumerate()
-                    .position(|(i, q)| {
-                        q.queue_flags.intersects(QueueFlags::GRAPHICS)
-                            && p.presentation_support(i as u32, event_loop)
-                    })
-                    .map(|i| (p, i as u32))
-            })
-            .min_by_key(|(p, _)| match p.properties().device_type {
-                PhysicalDeviceType::DiscreteGpu => 0,
-                PhysicalDeviceType::IntegratedGpu => 1,
-                PhysicalDeviceType::VirtualGpu => 2,
-                PhysicalDeviceType::Cpu => 3,
-                PhysicalDeviceType::Other => 4,
-                _ => 5,
-            })
-            .expect("no suitable physical device found");
-        println!(
-            "Using device: {} (type: {:?})",
-            physical_device.properties().device_name,
-            physical_device.properties().device_type,
-        );
-        let (device, queues) = Device::new(
-            &physical_device,
-            &DeviceCreateInfo {
-                enabled_extensions: &device_extensions,
-                enabled_features: &DeviceFeatures {
-                    ..BindlessContext::required_features(&instance)
-                },
-                queue_create_infos: &[QueueCreateInfo {
-                    queue_family_index,
-                    ..Default::default()
-                }],
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
+        let (device, queue) = create_device(&instance, event_loop);
         let scene_data = SceneData::new(&device, &config)?;
+        let audio_settings = Arc::new(config.audio);
 
-        let queue = queues[0].clone();
         let resources = Resources::new(
             &device,
             &ResourcesCreateInfo {
@@ -203,9 +65,8 @@ impl App {
         )
         .unwrap();
         let flight_id = resources.create_flight(MAX_FRAMES_IN_FLIGHT).unwrap();
-        let render_context = None;
-        let audio_settings = Arc::new(config.audio);
         let stream = Arc::new(Stream::new(&audio_settings).unwrap());
+
         Ok(App {
             instance,
             device,
@@ -214,9 +75,10 @@ impl App {
             flight_id,
             scene_data: Arc::new(scene_data),
             audio_settings,
-            render_context,
+            render_context: None,
             stream,
             frame_timer: FrameTimer::new(),
+            _debug_messenger: debug_messenger,
         })
     }
 }
@@ -224,7 +86,7 @@ impl App {
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.render_context = Some(RenderContext::new(
-            &event_loop,
+            event_loop,
             &self.instance,
             &self.device,
             &self.queue,
@@ -249,7 +111,7 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::Resized(_) => {
-                rcx.recreate_swapchain = true;
+                rcx.window_state.recreate_requested = true;
             }
             WindowEvent::RedrawRequested => {
                 self.frame_timer.start_frame();
@@ -262,6 +124,6 @@ impl ApplicationHandler for App {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         let rcx = self.render_context.as_mut().unwrap();
-        rcx.window.request_redraw();
+        rcx.window_state.window.request_redraw();
     }
 }

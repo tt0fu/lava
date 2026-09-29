@@ -81,7 +81,7 @@
     "transform": "fullscreen",
     "order": 0,
     "blend": "normal",
-    "background_color": [0.0, 0.0, 0.0, 1.0],
+    "background": [0.0, 0.0, 0.0, 1.0],
     "children": [
       {
         // Top waveform, masked by the rainbow pattern.
@@ -99,7 +99,7 @@
         },
         "order": 0,
         "blend": "normal",
-        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "background": [0.0, 0.0, 0.0, 0.0],
         "children": [
           {
             "transform": "fullscreen",
@@ -131,7 +131,7 @@
         },
         "order": 0,
         "blend": "normal",
-        "background_color": [0.0, 0.0, 0.0, 0.0],
+        "background": [0.0, 0.0, 0.0, 0.0],
         "children": [
           {
             "transform": "fullscreen",
@@ -239,5 +239,5 @@
       },
     ],
   },
-  "background_color": [0.0, 0.0, 0.0, 1.0],
+  "background": [0.0, 0.0, 0.0, 1.0],
 }

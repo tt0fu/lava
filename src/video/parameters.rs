@@ -44,8 +44,6 @@ pub trait Parameters: Layout + Write + Send + Sync {
     fn resolve_images(&self, images: &ImageIds) -> Result<()>;
 }
 
-pub trait ParametersMut: Layout + WriteMut + Send + Sync {}
-
 pub trait TypedParameters: Send + Sync {
     type Content: BufferContents;
 

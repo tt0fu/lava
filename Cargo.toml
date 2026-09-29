@@ -3,9 +3,6 @@ name = "lava"
 version = "0.0.4"
 edition = "2024"
 
-[lints.rust]
-dead_code = "allow"
-
 [features]
 debug = []
 

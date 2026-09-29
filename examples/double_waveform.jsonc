@@ -171,13 +171,13 @@
     "transform": "fullscreen",
     "order": 0,
     "blend": "normal",
-    "background_color": [0.0, 0.0, 0.0, 1.0],
+    "background": [0.0, 0.0, 0.0, 1.0],
     "children": [
       {
         "transform": "top strip",
         "order": 0,
         "blend": "normal",
-        "background_color": [0.0, 0.0, 0.0, 1.0],
+        "background": [0.0, 0.0, 0.0, 1.0],
         "children": [
           {
             "transform": "fullscreen",
@@ -198,7 +198,7 @@
         "transform": "bottom strip",
         "order": 0,
         "blend": "normal",
-        "background_color": [0.0, 0.0, 0.0, 1.0],
+        "background": [0.0, 0.0, 0.0, 1.0],
         "children": [
           {
             "transform": "fullscreen",
@@ -218,7 +218,7 @@
         "transform": "center",
         "order": 0,
         "blend": "normal",
-        "background_color": [0.0, 0.0, 0.0, 1.0],
+        "background": [0.0, 0.0, 0.0, 1.0],
         "children": [
           {
             "transform": "fullscreen",
@@ -238,7 +238,7 @@
         "transform": "left strip",
         "order": 0,
         "blend": "normal",
-        "background_color": [0.0, 0.0, 0.0, 1.0],
+        "background": [0.0, 0.0, 0.0, 1.0],
         "children": [
           {
             "transform": "fullscreen",
@@ -264,7 +264,7 @@
         "transform": "right strip",
         "order": 0,
         "blend": "normal",
-        "background_color": [0.0, 0.0, 0.0, 1.0],
+        "background": [0.0, 0.0, 0.0, 1.0],
         "children": [
           {
             "transform": "fullscreen",

@@ -1,7 +1,8 @@
 use std::time::{Duration, Instant};
 
+use crate::stats::frame_stats::FrameStats;
+
 pub struct FrameTimer {
-    start_time: Instant,
     frame_start: Instant,
     frame_times: Vec<Duration>,
     sorted_cache: Option<Vec<Duration>>,
@@ -10,7 +11,6 @@ pub struct FrameTimer {
 impl FrameTimer {
     pub fn new() -> Self {
         Self {
-            start_time: Instant::now(),
             frame_start: Instant::now(),
             frame_times: Vec::new(),
             sorted_cache: None,
@@ -27,86 +27,58 @@ impl FrameTimer {
         self.sorted_cache = None;
     }
 
-    pub fn percentile(&mut self, p: f64) -> Duration {
+    pub fn print_results(&mut self) {
+        self.stats().print();
+    }
+
+    fn stats(&mut self) -> FrameStats {
+        let frame_count = self.frame_times.len();
+        let sum = self.frame_times.iter().sum::<Duration>();
+        FrameStats {
+            frame_count,
+            average: if frame_count > 0 {
+                sum.div_f64(frame_count as f64)
+            } else {
+                Duration::ZERO
+            },
+            min: self.min(),
+            max: self.max(),
+            p90: self.percentile(0.90),
+            p99: self.percentile(0.99),
+            p999: self.percentile(0.999),
+        }
+    }
+
+    fn min(&self) -> Duration {
+        self.frame_times
+            .iter()
+            .min()
+            .copied()
+            .unwrap_or(Duration::ZERO)
+    }
+
+    fn max(&self) -> Duration {
+        self.frame_times
+            .iter()
+            .max()
+            .copied()
+            .unwrap_or(Duration::ZERO)
+    }
+
+    fn percentile(&mut self, p: f64) -> Duration {
         let len = self.frame_times.len();
+        if len == 0 {
+            return Duration::ZERO;
+        }
 
         if self.sorted_cache.is_none() {
             let mut sorted = self.frame_times.clone();
             sorted.sort();
             self.sorted_cache = Some(sorted);
         }
-
         let sorted = self.sorted_cache.as_ref().unwrap();
+
         let index = ((p * (len - 1) as f64).round() as usize).min(len - 1);
         sorted[index]
-    }
-
-    pub fn results(
-        &mut self,
-    ) -> (
-        usize,
-        Duration,
-        Duration,
-        Duration,
-        Duration,
-        Duration,
-        Duration,
-    ) {
-        let len = self.frame_times.len();
-        let sum = self.frame_times.iter().sum::<Duration>();
-        let avg = if len > 0 {
-            sum.div_f64(len as f64)
-        } else {
-            Duration::ZERO
-        };
-        let min = self
-            .frame_times
-            .iter()
-            .min()
-            .copied()
-            .unwrap_or(Duration::ZERO);
-        let max = self
-            .frame_times
-            .iter()
-            .max()
-            .copied()
-            .unwrap_or(Duration::ZERO);
-        let p90 = self.percentile(0.90);
-        let p99 = self.percentile(0.99);
-        let p999 = self.percentile(0.999);
-        (len, avg, min, max, p90, p99, p999)
-    }
-
-    fn fps(frame_time: Duration) -> f64 {
-        if frame_time > Duration::ZERO {
-            Duration::from_secs(1).div_duration_f64(frame_time)
-        } else {
-            0.0
-        }
-    }
-
-    pub fn print_results(&mut self) {
-        let (len, avg, min, max, p90, p99, p999) = self.results();
-        println!(
-            "{} frames: \n  avg: {:?} ({:.1} fps)\n  min: {:?} ({:.1} fps)\n  max: {:?} ({:.1} fps)\n  90%: {:?} ({:.1} fps)\n  99%: {:?} ({:.1} fps)\n  99.9%: {:?} ({:.1} fps)",
-            len,
-            avg,
-            Self::fps(avg),
-            min,
-            Self::fps(min),
-            max,
-            Self::fps(max),
-            p90,
-            Self::fps(p90),
-            p99,
-            Self::fps(p99),
-            p999,
-            Self::fps(p999)
-        );
-    }
-
-    pub fn clear_frame_times(&mut self) {
-        self.frame_times.clear();
-        self.sorted_cache = None;
     }
 }

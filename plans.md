@@ -1,5 +1,9 @@
 (x/5) - perceived difficulty
 
+# Proper runtime profiling (2/5)
+
+Add proper host and device timings which then can be analyzed to tune the performance.
+
 # Moving away to slang from glsl (4?/5)
 
 Vulkano slang support is still in early beta. Will have to wait until it improves.
