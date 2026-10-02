@@ -27,7 +27,7 @@
       "shader": "waveform",
       "parameters": {
         "background": [0.0, 0.0, 0.0, 0.0],
-        "foreground": [1.0, 1.0, 1.0, 0.0],
+        "foreground": [1.0, 1.0, 1.0, 1.0],
         "line_width": 50.0,
         "gain": 1.0,
       },
@@ -48,6 +48,7 @@
     "transform": "fullscreen",
     "order": 0,
     "blend": "normal",
+    "background": [0.0, 0.0, 0.0, 1.0],
     "children": [
       {
         "transform": "fullscreen",
