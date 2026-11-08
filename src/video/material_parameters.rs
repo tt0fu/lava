@@ -65,6 +65,8 @@ impl TypedParameters for HnodeParameters {
 #[derive(Deserialize)]
 pub struct ColorParameters {
     pub color: Vec4,
+    pub band_weights: Vec4,
+    pub band_color: Vec4,
 }
 
 impl TypedParameters for ColorParameters {
@@ -73,6 +75,8 @@ impl TypedParameters for ColorParameters {
     fn get_content(&self) -> Self::Content {
         Self::Content {
             color: self.color.into(),
+            band_weights: self.band_weights.into(),
+            band_color: self.band_color.into(),
         }
     }
 }
